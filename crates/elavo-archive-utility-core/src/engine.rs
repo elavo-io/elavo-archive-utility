@@ -432,10 +432,18 @@ fn dispatch_extract(
     cancel: &Cancel,
     progress: &mut impl FnMut(Progress),
 ) -> Result<u64> {
-    if format.is_stream() && !matches!(
-        format,
-        Format::Lzip | Format::Lz4 | Format::Brotli | Format::Lrzip | Format::Snappy | Format::Compress | Format::Lzma
-    ) {
+    if format.is_stream()
+        && !matches!(
+            format,
+            Format::Lzip
+                | Format::Lz4
+                | Format::Brotli
+                | Format::Lrzip
+                | Format::Snappy
+                | Format::Compress
+                | Format::Lzma
+        )
+    {
         let file_name = stream_name(&req.archive);
         return tarpack::extract_stream(
             &req.archive,
@@ -448,7 +456,13 @@ fn dispatch_extract(
     }
     if matches!(
         format,
-        Format::Lzip | Format::Lz4 | Format::Brotli | Format::Lrzip | Format::Snappy | Format::Compress | Format::Lzma
+        Format::Lzip
+            | Format::Lz4
+            | Format::Brotli
+            | Format::Lrzip
+            | Format::Snappy
+            | Format::Compress
+            | Format::Lzma
     ) {
         let file_name = stream_name(&req.archive);
         return streams::extract_stream(
@@ -460,29 +474,23 @@ fn dispatch_extract(
             progress,
         );
     }
-    if matches!(format, Format::Tar | Format::TarGz | Format::TarXz | Format::TarBz2 | Format::TarZst)
-    {
-        return tarpack::extract_tar(
-            &req.archive,
-            format,
-            folder,
-            req.conflict,
-            cancel,
-            progress,
-        );
+    if matches!(
+        format,
+        Format::Tar | Format::TarGz | Format::TarXz | Format::TarBz2 | Format::TarZst
+    ) {
+        return tarpack::extract_tar(&req.archive, format, folder, req.conflict, cancel, progress);
     }
     if matches!(
         format,
-        Format::TarLz | Format::TarLz4 | Format::TarBr | Format::TarLrz | Format::TarSz | Format::TarZ | Format::TarLzma
+        Format::TarLz
+            | Format::TarLz4
+            | Format::TarBr
+            | Format::TarLrz
+            | Format::TarSz
+            | Format::TarZ
+            | Format::TarLzma
     ) {
-        return streams::extract_tar(
-            &req.archive,
-            format,
-            folder,
-            req.conflict,
-            cancel,
-            progress,
-        );
+        return streams::extract_tar(&req.archive, format, folder, req.conflict, cancel, progress);
     }
     if format == Format::Rar {
         return rar::extract(

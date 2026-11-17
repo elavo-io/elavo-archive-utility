@@ -15,6 +15,7 @@ fn main() -> glib::ExitCode {
     if cli::wants(&args) {
         std::process::exit(cli::run(&args));
     }
-    gio::resources_register_include!("elavo-archive-utility.gresource").expect("compiled resources");
+    gio::resources_register_include!("elavo-archive-utility.gresource")
+        .expect("compiled resources");
     app::run()
 }

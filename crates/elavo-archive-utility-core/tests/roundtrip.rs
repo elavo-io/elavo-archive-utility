@@ -71,7 +71,7 @@ fn round_trip(format: Format, level: Level) {
             password: None,
             encrypt_names: false,
             split: None,
-        ..CompressRequest::default()
+            ..CompressRequest::default()
         },
         &Cancel::new(),
         |_| {},
@@ -168,7 +168,7 @@ fn tar_keeps_a_symlink() {
             password: None,
             encrypt_names: false,
             split: None,
-        ..CompressRequest::default()
+            ..CompressRequest::default()
         },
         &Cancel::new(),
         |_| {},
@@ -235,7 +235,7 @@ fn cancel_before_starting_is_reported() {
             password: None,
             encrypt_names: false,
             split: None,
-        ..CompressRequest::default()
+            ..CompressRequest::default()
         },
         &cancel,
         |_| {},
@@ -341,7 +341,7 @@ fn split_volumes_round_trip() {
             password: None,
             encrypt_names: false,
             split: Some(64 * 1024),
-        ..CompressRequest::default()
+            ..CompressRequest::default()
         },
         &Cancel::new(),
         |_| {},
@@ -468,7 +468,7 @@ fn rename_keeps_the_file_that_was_already_there() {
             password: None,
             encrypt_names: false,
             split: None,
-        ..CompressRequest::default()
+            ..CompressRequest::default()
         },
         &Cancel::new(),
         |_| {},
@@ -494,9 +494,8 @@ fn rename_keeps_the_file_that_was_already_there() {
 }
 
 fn has(tool: &str) -> bool {
-    std::env::var_os("PATH").is_some_and(|path| {
-        std::env::split_paths(&path).any(|dir| dir.join(tool).is_file())
-    })
+    std::env::var_os("PATH")
+        .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(tool).is_file()))
 }
 
 fn round_file(format: Format) {
@@ -592,7 +591,10 @@ fn a_folder_of_lz4_is_a_tar() {
         |_| {},
     )
     .unwrap();
-    assert_eq!(fs::read(dest.join("Notes/hello.txt")).unwrap(), b"hello elavo-archive-utility\n");
+    assert_eq!(
+        fs::read(dest.join("Notes/hello.txt")).unwrap(),
+        b"hello elavo-archive-utility\n"
+    );
 }
 
 #[test]
@@ -716,7 +718,10 @@ fn open_formats_from_small_fixtures() {
             .success());
         assert_eq!(detect(&archive), Some(Format::Ar));
         let out = extract_ok(&archive);
-        assert_eq!(find_named(&out, "hello.txt").unwrap(), b"hello elavo-archive-utility\n");
+        assert_eq!(
+            find_named(&out, "hello.txt").unwrap(),
+            b"hello elavo-archive-utility\n"
+        );
     }
     if has("cpio") {
         let archive = dir.path().join("files.cpio");
@@ -724,7 +729,9 @@ fn open_formats_from_small_fixtures() {
             .current_dir(dir.path())
             .args(["-o", "-H", "newc"])
             .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::from(fs::File::create(&archive).unwrap()))
+            .stdout(std::process::Stdio::from(
+                fs::File::create(&archive).unwrap(),
+            ))
             .spawn()
             .unwrap();
         use std::io::Write;
@@ -737,7 +744,10 @@ fn open_formats_from_small_fixtures() {
         assert!(child.wait().unwrap().success());
         assert_eq!(detect(&archive), Some(Format::Cpio));
         let out = extract_ok(&archive);
-        assert_eq!(find_named(&out, "hello.txt").unwrap(), b"hello elavo-archive-utility\n");
+        assert_eq!(
+            find_named(&out, "hello.txt").unwrap(),
+            b"hello elavo-archive-utility\n"
+        );
     }
     if has("gcab") {
         let archive = dir.path().join("files.cab");
@@ -749,7 +759,10 @@ fn open_formats_from_small_fixtures() {
             .success());
         assert_eq!(detect(&archive), Some(Format::Cab));
         let out = extract_ok(&archive);
-        assert_eq!(find_named(&out, "hello.txt").unwrap(), b"hello elavo-archive-utility\n");
+        assert_eq!(
+            find_named(&out, "hello.txt").unwrap(),
+            b"hello elavo-archive-utility\n"
+        );
     }
     if has("dpkg-deb") {
         let root = dir.path().join("pkg");
@@ -768,32 +781,44 @@ fn open_formats_from_small_fixtures() {
             .success());
         assert_eq!(detect(&archive), Some(Format::Deb));
         let out = extract_ok(&archive);
-        assert_eq!(find_named(&out, "hello.txt").unwrap(), b"hello elavo-archive-utility\n");
+        assert_eq!(
+            find_named(&out, "hello.txt").unwrap(),
+            b"hello elavo-archive-utility\n"
+        );
     }
     if has("compress") {
         let archive = dir.path().join("hello.Z");
         let mut child = Command::new("compress")
             .args(["-c", hello.to_str().unwrap()])
-            .stdout(std::process::Stdio::from(fs::File::create(&archive).unwrap()))
+            .stdout(std::process::Stdio::from(
+                fs::File::create(&archive).unwrap(),
+            ))
             .spawn()
             .unwrap();
         assert!(child.wait().unwrap().success());
         assert_eq!(detect(&archive), Some(Format::Compress));
         let out = extract_ok(&archive);
-        assert_eq!(find_named(&out, "hello").unwrap_or_else(|| find_named(&out, "hello.txt").unwrap()), b"hello elavo-archive-utility\n");
+        assert_eq!(
+            find_named(&out, "hello").unwrap_or_else(|| find_named(&out, "hello.txt").unwrap()),
+            b"hello elavo-archive-utility\n"
+        );
     }
     if has("lzma") || has("xz") {
         let archive = dir.path().join("hello.lzma");
         let status = if has("xz") {
             Command::new("xz")
                 .args(["--format=lzma", "-c", hello.to_str().unwrap()])
-                .stdout(std::process::Stdio::from(fs::File::create(&archive).unwrap()))
+                .stdout(std::process::Stdio::from(
+                    fs::File::create(&archive).unwrap(),
+                ))
                 .status()
                 .unwrap()
         } else {
             Command::new("lzma")
                 .args(["-c", hello.to_str().unwrap()])
-                .stdout(std::process::Stdio::from(fs::File::create(&archive).unwrap()))
+                .stdout(std::process::Stdio::from(
+                    fs::File::create(&archive).unwrap(),
+                ))
                 .status()
                 .unwrap()
         };
@@ -819,7 +844,10 @@ fn open_formats_from_small_fixtures() {
             .success());
         assert_eq!(detect(&archive), Some(Format::SquashFs));
         let out = extract_ok(&archive);
-        assert_eq!(find_named(&out, "hello.txt").unwrap(), b"hello elavo-archive-utility\n");
+        assert_eq!(
+            find_named(&out, "hello.txt").unwrap(),
+            b"hello elavo-archive-utility\n"
+        );
     }
     // An installer-shaped name whose bytes are a zip. innoextract declines
     // and 7-Zip opens it.
@@ -838,7 +866,10 @@ fn open_formats_from_small_fixtures() {
     .unwrap();
     assert_eq!(detect(&exe), Some(Format::Exe));
     let out = extract_ok(&exe);
-    assert_eq!(find_named(&out, "hello.txt").unwrap(), b"hello elavo-archive-utility\n");
+    assert_eq!(
+        find_named(&out, "hello.txt").unwrap(),
+        b"hello elavo-archive-utility\n"
+    );
 }
 
 #[test]
@@ -871,7 +902,10 @@ fn zip_packages_and_an_unknown_tar_fall_back() {
             })
         );
         let out = extract_ok(&archive);
-        assert_eq!(find_named(&out, "hello.txt").unwrap(), b"hello elavo-archive-utility\n");
+        assert_eq!(
+            find_named(&out, "hello.txt").unwrap(),
+            b"hello elavo-archive-utility\n"
+        );
     }
 
     // A v7 tar has no ustar marker, so detection does not claim it. Extraction
@@ -891,7 +925,10 @@ fn zip_packages_and_an_unknown_tar_fall_back() {
         .success());
     assert_eq!(detect(&archive), None);
     let out = extract_ok(&archive);
-    assert_eq!(find_named(&out, "hello.txt").unwrap(), b"hello elavo-archive-utility\n");
+    assert_eq!(
+        find_named(&out, "hello.txt").unwrap(),
+        b"hello elavo-archive-utility\n"
+    );
 }
 
 /// A ustar member whose name is exactly the bytes given, including `..`.
@@ -1016,7 +1053,12 @@ fn files_match(left: &Path, right: &Path) {
 }
 
 /// Split `len` bytes into volumes of `part` bytes and extract the first volume.
-fn split_round_trip(format: Format, password: Option<&str>, part: u64, len: u64) -> Vec<(String, u64)> {
+fn split_round_trip(
+    format: Format,
+    password: Option<&str>,
+    part: u64,
+    len: u64,
+) -> Vec<(String, u64)> {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("payload.bin");
     fill_pattern(&src, len);
@@ -1049,11 +1091,17 @@ fn split_round_trip(format: Format, password: Option<&str>, part: u64, len: u64)
         .collect();
     parts.sort_by(|left, right| left.0.cmp(&right.0));
     assert!(parts.len() >= 2, "expected several volumes, got {parts:?}");
-    assert_eq!(outcome.path, parts[0].2, "extract starts at the first volume");
+    assert_eq!(
+        outcome.path, parts[0].2,
+        "extract starts at the first volume"
+    );
     for (name, size, _) in &parts[..parts.len() - 1] {
         assert_eq!(*size, part, "{name} should be exactly {part} bytes");
     }
-    assert!(parts.last().unwrap().1 < part, "the last volume is the remainder");
+    assert!(
+        parts.last().unwrap().1 < part,
+        "the last volume is the remainder"
+    );
     let dest = dir.path().join("back");
     fs::create_dir(&dest).unwrap();
     extract(
@@ -1083,9 +1131,9 @@ fn five_megabyte_splits_round_trip_for_7z_and_zip() {
         let parts = split_round_trip(format, None, part, len);
         let names: Vec<_> = parts.iter().map(|(name, _)| name.as_str()).collect();
         eprintln!("{format:?} parts: {parts:?}");
-        let split_names = names.iter().all(|name| {
-            name.contains(".00") || name.contains(".z0") || name.ends_with(".zip")
-        });
+        let split_names = names
+            .iter()
+            .all(|name| name.contains(".00") || name.contains(".z0") || name.ends_with(".zip"));
         assert!(split_names, "volume names, got {names:?}");
         assert!(
             names[0].ends_with(".001") || names[0].ends_with(".z01"),
@@ -1137,7 +1185,13 @@ fn an_empty_split_is_a_single_archive() {
 fn formats_that_cannot_split_are_refused() {
     assert!(Format::SevenZ.supports_split());
     assert!(Format::Zip.supports_split());
-    for format in [Format::Gz, Format::Tar, Format::Zst, Format::Xz, Format::Bz2] {
+    for format in [
+        Format::Gz,
+        Format::Tar,
+        Format::Zst,
+        Format::Xz,
+        Format::Bz2,
+    ] {
         assert!(!format.supports_split(), "{format:?}");
     }
     let dir = tempfile::tempdir().unwrap();

@@ -26,8 +26,7 @@ pub fn format_bytes(bytes: u64) -> String {
 /// AppleDouble files, Finder metadata, and the `__MACOSX` directory.
 pub fn is_macos_metadata(rel: &str) -> bool {
     rel.split(['/', '\\']).any(|part| {
-        !part.is_empty()
-            && (part == ".DS_Store" || part == "__MACOSX" || part.starts_with("._"))
+        !part.is_empty() && (part == ".DS_Store" || part == "__MACOSX" || part.starts_with("._"))
     })
 }
 

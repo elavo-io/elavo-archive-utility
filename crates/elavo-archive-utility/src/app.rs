@@ -29,10 +29,15 @@ pub fn run() -> glib::ExitCode {
         follow_color_scheme();
         gtk::Window::set_default_icon_name(APP_ID);
     });
-    app.connect_activate(|app| match std::env::var("ELAVO_ARCHIVE_UTILITY_SCREENSHOT").ok().as_deref() {
-        Some("extract") => crate::extract::demo(app, 1),
-        Some("extract-two") => crate::extract::demo(app, 4),
-        _ => show(app, Vec::new(), false),
+    app.connect_activate(|app| {
+        match std::env::var("ELAVO_ARCHIVE_UTILITY_SCREENSHOT")
+            .ok()
+            .as_deref()
+        {
+            Some("extract") => crate::extract::demo(app, 1),
+            Some("extract-two") => crate::extract::demo(app, 4),
+            _ => show(app, Vec::new(), false),
+        }
     });
     app.connect_open(|app, files, _| {
         let paths = files.iter().filter_map(|file| file.path()).collect();

@@ -10,10 +10,10 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 
-use gtk::gio;
-use gtk::prelude::*;
-use gtk::glib;
 use gtk::gdk;
+use gtk::gio;
+use gtk::glib;
+use gtk::prelude::*;
 
 use elavo_archive_utility_core::{
     suggest_extract_parent, Cancel, Error, ExtractRequest, Outcome, Progress, Settings,
@@ -72,15 +72,30 @@ pub fn demo(app: &gtk::Application, jobs: usize) {
     let extractor = current(app);
     // Real magic bytes, so Gio sniffs a content type instead of an empty file.
     let samples: &[(&str, &[u8], f64, &str)] = &[
-        ("notes.zip", b"PK\x03\x04\x14\x00\x00\x00", 0.62, "About 8 seconds"),
+        (
+            "notes.zip",
+            b"PK\x03\x04\x14\x00\x00\x00",
+            0.62,
+            "About 8 seconds",
+        ),
         (
             "photos.7z",
             &[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0x00, 0x04],
             0.28,
             "About 20 seconds",
         ),
-        ("disk.dmg", b"\0\0\0\0koly\0\0\0\0disk image", 0.45, "About 12 seconds"),
-        ("setup.exe", b"MZ\x90\x00\x03\x00\x00\x00\x04\x00", 0.18, "About 40 seconds"),
+        (
+            "disk.dmg",
+            b"\0\0\0\0koly\0\0\0\0disk image",
+            0.45,
+            "About 12 seconds",
+        ),
+        (
+            "setup.exe",
+            b"MZ\x90\x00\x03\x00\x00\x00\x04\x00",
+            0.18,
+            "About 40 seconds",
+        ),
     ];
     let dir = std::env::temp_dir().join("au-shot-archives");
     let _ = std::fs::create_dir_all(&dir);
@@ -337,8 +352,10 @@ impl Extractor {
         if let Some(fraction) = fraction {
             let fraction = fraction.clamp(0.0, 1.0);
             row.bar.set_fraction(fraction);
-            row.estimate
-                .set_label(&about_remaining(row.started.elapsed().as_secs_f64(), fraction));
+            row.estimate.set_label(&about_remaining(
+                row.started.elapsed().as_secs_f64(),
+                fraction,
+            ));
         } else {
             row.bar.pulse();
         }
@@ -440,9 +457,7 @@ impl Extractor {
                     let failed = extractor.add_row(&archive);
                     failed.failed.set(true);
                     failed.pause.set_visible(false);
-                    failed
-                        .estimate
-                        .set_label("This archive needs a password.");
+                    failed.estimate.set_label("This archive needs a password.");
                     failed.estimate.add_css_class("au-error");
                 }
             }
@@ -553,9 +568,7 @@ fn report_icon(path: &std::path::Path, icon: &gio::Icon) {
             gtk::TextDirection::Ltr,
             gtk::IconLookupFlags::empty(),
         );
-        let named = paintable
-            .icon_name()
-            .map(|name| name.display().to_string());
+        let named = paintable.icon_name().map(|name| name.display().to_string());
         let file = paintable
             .file()
             .and_then(|file| file.path())
@@ -590,7 +603,10 @@ fn round_button(icon: &str, tip: &str) -> gtk::Button {
         .css_classes(["au-round"])
         .valign(gtk::Align::Center)
         .build();
-    if let Some(image) = button.child().and_then(|child| child.downcast::<gtk::Image>().ok()) {
+    if let Some(image) = button
+        .child()
+        .and_then(|child| child.downcast::<gtk::Image>().ok())
+    {
         image.set_pixel_size(10);
     }
     button
@@ -600,7 +616,9 @@ pub fn about_remaining(elapsed_secs: f64, fraction: f64) -> String {
     if fraction < 0.02 || !elapsed_secs.is_finite() {
         return "Estimating…".into();
     }
-    let remaining = (elapsed_secs * (1.0 - fraction) / fraction).round().max(0.0) as u64;
+    let remaining = (elapsed_secs * (1.0 - fraction) / fraction)
+        .round()
+        .max(0.0) as u64;
     if remaining < 2 {
         "About a second".into()
     } else if remaining < 60 {
@@ -627,4 +645,3 @@ mod tests {
         assert_eq!(about_remaining(90.0, 0.5), "About 2 minutes");
     }
 }
-

@@ -245,8 +245,7 @@ impl Settings {
         self.format = format;
         self.level = options.level;
         self.split = Split::from_text(&options.split);
-        self.format_options
-            .insert(format.id().to_string(), options);
+        self.format_options.insert(format.id().to_string(), options);
     }
 }
 

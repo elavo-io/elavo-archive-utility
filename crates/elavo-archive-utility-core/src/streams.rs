@@ -94,7 +94,8 @@ pub fn test_file(archive: &Path, format: Format, cancel: &Cancel) -> Result<()> 
     let dir = tempfile::tempdir().map_err(Error::from)?;
     let out = dir.path().join("check");
     decode_to_file(archive, codec, &out, cancel, &mut |_| {})?;
-    if fs::metadata(&out).map(|meta| meta.len()).unwrap_or(0) == 0 && fs::metadata(archive)?.len() > 32
+    if fs::metadata(&out).map(|meta| meta.len()).unwrap_or(0) == 0
+        && fs::metadata(archive)?.len() > 32
     {
         return Err(Error::Failed(
             "Verification could not read the archive.".into(),
@@ -161,9 +162,7 @@ fn compress_one(
         }
     }
     if !output.is_file() {
-        return Err(Error::Failed(
-            "The compressor did not write a file.".into(),
-        ));
+        return Err(Error::Failed("The compressor did not write a file.".into()));
     }
     report(progress, Some(1.0), label);
     Ok(())
@@ -181,7 +180,10 @@ fn compress_command(
     let output = output.display().to_string();
     match codec {
         Format::Lzip => {
-            let program = tools.lzip.clone().ok_or(missing("lzip", "create LZIP archives"))?;
+            let program = tools
+                .lzip
+                .clone()
+                .ok_or(missing("lzip", "create LZIP archives"))?;
             Ok((
                 program,
                 vec!["-c".into(), level.lzip().into(), "--".into(), input],
@@ -189,7 +191,10 @@ fn compress_command(
             ))
         }
         Format::Lz4 => {
-            let program = tools.lz4.clone().ok_or(missing("lz4", "create LZ4 archives"))?;
+            let program = tools
+                .lz4
+                .clone()
+                .ok_or(missing("lz4", "create LZ4 archives"))?;
             Ok((
                 program,
                 vec![
@@ -362,25 +367,29 @@ fn decode_command(
                 false,
             )
         }),
-        Format::Compress => tools.gzip.clone().map(|program| {
-            (
-                program,
-                vec![
-                    "-d".into(),
-                    "-c".into(),
-                    "-f".into(),
-                    "--".into(),
-                    archive.clone(),
-                ],
-                true,
-            )
-        })
-        .or_else(|| {
-            let archive = archive.clone();
-            tools.uncompress.clone().map(move |program| {
-                (program, vec!["-c".into(), archive], true)
+        Format::Compress => tools
+            .gzip
+            .clone()
+            .map(|program| {
+                (
+                    program,
+                    vec![
+                        "-d".into(),
+                        "-c".into(),
+                        "-f".into(),
+                        "--".into(),
+                        archive.clone(),
+                    ],
+                    true,
+                )
             })
-        }),
+            .or_else(|| {
+                let archive = archive.clone();
+                tools
+                    .uncompress
+                    .clone()
+                    .map(move |program| (program, vec!["-c".into(), archive], true))
+            }),
         Format::Lzma => tools
             .xz
             .clone()
@@ -422,7 +431,10 @@ fn decode_with_seven(
     cancel: &Cancel,
     progress: &mut impl FnMut(Progress),
 ) -> Result<()> {
-    let program = tools::tools().seven_zip.clone().ok_or(missing("7z", "open this"))?;
+    let program = tools::tools()
+        .seven_zip
+        .clone()
+        .ok_or(missing("7z", "open this"))?;
     let dir = tempfile::tempdir().map_err(Error::from)?;
     let ran = process::run(
         Spec {

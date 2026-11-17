@@ -22,10 +22,13 @@ pub fn create_iso(
     mut progress: impl FnMut(Progress),
 ) -> Result<u64> {
     let tools = tools::tools();
-    let program = tools.iso_creator.clone().ok_or_else(|| Error::ToolMissing {
-        tool: "xorriso",
-        purpose: "create ISO images".into(),
-    })?;
+    let program = tools
+        .iso_creator
+        .clone()
+        .ok_or_else(|| Error::ToolMissing {
+            tool: "xorriso",
+            purpose: "create ISO images".into(),
+        })?;
     let staged = stage_dir(inputs, exclude_macos)?;
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)?;
@@ -89,10 +92,13 @@ pub fn create_dmg(
     cancel: &Cancel,
     mut progress: impl FnMut(Progress),
 ) -> Result<u64> {
-    let program = tools::tools().dmg_build.clone().ok_or_else(|| Error::ToolMissing {
-        tool: "dmg",
-        purpose: "create DMG images".into(),
-    })?;
+    let program = tools::tools()
+        .dmg_build
+        .clone()
+        .ok_or_else(|| Error::ToolMissing {
+            tool: "dmg",
+            purpose: "create DMG images".into(),
+        })?;
     let staged = stage_dir(inputs, exclude_macos)?;
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)?;
@@ -251,9 +257,8 @@ fn copy_entry(src: &Path, dst: &Path, exclude_macos: bool, depth: u32) -> Result
     }
     let meta = fs::symlink_metadata(src)?;
     if meta.file_type().is_symlink() {
-        let target = fs::canonicalize(src).map_err(|_| {
-            Error::Failed(format!("Couldn't follow the link {}.", src.display()))
-        })?;
+        let target = fs::canonicalize(src)
+            .map_err(|_| Error::Failed(format!("Couldn't follow the link {}.", src.display())))?;
         return copy_entry(&target, dst, exclude_macos, depth + 1);
     }
     if meta.is_dir() {

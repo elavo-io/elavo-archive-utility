@@ -39,7 +39,5 @@ pub use names::{
     suggest_extract_parent,
 };
 pub use progress::Progress;
-pub use settings::{
-    config_path, Conflict, FormatOptions, NewFolder, OutputPlace, Settings, Split,
-};
+pub use settings::{config_path, Conflict, FormatOptions, NewFolder, OutputPlace, Settings, Split};
 pub use tools::{tools, Tools};

@@ -38,21 +38,15 @@ pub fn available() -> bool {
     load().is_some()
 }
 
-pub fn extract(
-    archive: &Path,
-    dest: &Path,
-    conflict: Conflict,
-    cancel: &Cancel,
-) -> Result<u64> {
+pub fn extract(archive: &Path, dest: &Path, conflict: Conflict, cancel: &Cancel) -> Result<u64> {
     let Some(lib) = load() else {
         return Err(Error::ToolMissing {
             tool: "unar",
             purpose: "open this RAR archive".into(),
         });
     };
-    let path = CString::new(archive.display().to_string()).map_err(|_| {
-        Error::Failed("The archive path cannot be passed to libunarr.".into())
-    })?;
+    let path = CString::new(archive.display().to_string())
+        .map_err(|_| Error::Failed("The archive path cannot be passed to libunarr.".into()))?;
     unsafe {
         let stream = (lib.open_file)(path.as_ptr());
         if stream.is_null() {
@@ -90,7 +84,9 @@ unsafe fn extract_entries(
         if name_ptr.is_null() {
             continue;
         }
-        let name = CStr::from_ptr(name_ptr).to_string_lossy().replace('\\', "/");
+        let name = CStr::from_ptr(name_ptr)
+            .to_string_lossy()
+            .replace('\\', "/");
         let rel = Path::new(name.trim_matches('/'));
         if rel.as_os_str().is_empty() {
             continue;
@@ -198,18 +194,27 @@ fn load_library() -> Option<Unarr> {
             }};
         }
         Some(Unarr {
-            open_file: fun!("ar_open_file", unsafe extern "C" fn(*const c_char) -> *mut ArStream),
+            open_file: fun!(
+                "ar_open_file",
+                unsafe extern "C" fn(*const c_char) -> *mut ArStream
+            ),
             open_rar: fun!(
                 "ar_open_rar_archive",
                 unsafe extern "C" fn(*mut ArStream) -> *mut ArArchive
             ),
-            parse: fun!("ar_parse_entry", unsafe extern "C" fn(*mut ArArchive) -> bool),
+            parse: fun!(
+                "ar_parse_entry",
+                unsafe extern "C" fn(*mut ArArchive) -> bool
+            ),
             at_eof: fun!("ar_at_eof", unsafe extern "C" fn(*mut ArArchive) -> bool),
             name: fun!(
                 "ar_entry_get_name",
                 unsafe extern "C" fn(*mut ArArchive) -> *const c_char
             ),
-            size: fun!("ar_entry_get_size", unsafe extern "C" fn(*mut ArArchive) -> usize),
+            size: fun!(
+                "ar_entry_get_size",
+                unsafe extern "C" fn(*mut ArArchive) -> usize
+            ),
             uncompress: fun!(
                 "ar_entry_uncompress",
                 unsafe extern "C" fn(*mut ArArchive, *mut c_void, usize) -> bool

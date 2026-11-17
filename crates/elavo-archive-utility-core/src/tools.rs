@@ -223,20 +223,26 @@ mod tests {
     #[test]
     fn a_tool_on_path_is_found() {
         if std::path::Path::new("/usr/bin/lzip").is_file() {
-            assert!(tools().lzip.is_some(), "lzip is installed but was not found");
+            assert!(
+                tools().lzip.is_some(),
+                "lzip is installed but was not found"
+            );
         }
         if std::path::Path::new("/usr/bin/lrzip").is_file() {
-            assert!(tools().lrzip.is_some(), "lrzip is installed but was not found");
+            assert!(
+                tools().lrzip.is_some(),
+                "lrzip is installed but was not found"
+            );
         }
     }
 
     #[test]
     fn a_glued_password_is_a_leak() {
         let secret = "correct horse";
-        assert!(args_contain_secret(
-            &["-pcorrect horse".into()],
+        assert!(args_contain_secret(&["-pcorrect horse".into()], secret));
+        assert!(!args_contain_secret(
+            &["-p".into(), "archive.7z".into()],
             secret
         ));
-        assert!(!args_contain_secret(&["-p".into(), "archive.7z".into()], secret));
     }
 }

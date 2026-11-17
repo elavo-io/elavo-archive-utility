@@ -322,12 +322,7 @@ pub fn run_on_pty(spec: Spec, password: &str, cancel: &Cancel) -> Result<Output>
 }
 
 /// Like [`run_on_pty`], writing the password `times` times. Info-ZIP asks twice.
-pub fn run_on_pty_times(
-    spec: Spec,
-    password: &str,
-    times: u8,
-    cancel: &Cancel,
-) -> Result<Output> {
+pub fn run_on_pty_times(spec: Spec, password: &str, times: u8, cancel: &Cancel) -> Result<Output> {
     cancel.check()?;
     if args_contain_secret(&spec.args, password) {
         return Err(Error::Failed(

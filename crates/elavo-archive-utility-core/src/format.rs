@@ -94,9 +94,18 @@ impl Format {
         match self {
             Format::SevenZ => "7Z",
             Format::Zip => "ZIP",
-            Format::Tar | Format::TarGz | Format::TarXz | Format::TarBz2 | Format::TarZst
-            | Format::TarLz | Format::TarLz4 | Format::TarBr | Format::TarLrz | Format::TarSz
-            | Format::TarZ | Format::TarLzma => "TAR",
+            Format::Tar
+            | Format::TarGz
+            | Format::TarXz
+            | Format::TarBz2
+            | Format::TarZst
+            | Format::TarLz
+            | Format::TarLz4
+            | Format::TarBr
+            | Format::TarLrz
+            | Format::TarSz
+            | Format::TarZ
+            | Format::TarLzma => "TAR",
             Format::Gz => "GZIP",
             Format::Xz => "XZ",
             Format::Bz2 => "BZIP2",
@@ -813,7 +822,9 @@ fn detect_magic(path: &Path) -> Option<Format> {
     if prefix.starts_with(&[0xED, 0xAB, 0xEE, 0xDB]) {
         return Some(Format::Rpm);
     }
-    if prefix.starts_with(b"070701") || prefix.starts_with(b"070702") || prefix.starts_with(b"070707")
+    if prefix.starts_with(b"070701")
+        || prefix.starts_with(b"070702")
+        || prefix.starts_with(b"070707")
     {
         return Some(Format::Cpio);
     }
@@ -1268,7 +1279,10 @@ mod tests {
             Some(Format::Rar)
         );
         assert_eq!(detect(&write("cab", b"MSCF\0\0\0\0")), Some(Format::Cab));
-        assert_eq!(detect(&write("z", &[0x1F, 0x9D, 0x90])), Some(Format::Compress));
+        assert_eq!(
+            detect(&write("z", &[0x1F, 0x9D, 0x90])),
+            Some(Format::Compress)
+        );
         assert_eq!(detect(&write("lz", b"LZIP\x01")), Some(Format::Lzip));
         assert_eq!(
             detect(&write("frame", &[0x04, 0x22, 0x4D, 0x18])),
@@ -1282,7 +1296,10 @@ mod tests {
     fn old_ids_land_on_the_labeled_stops() {
         assert_eq!(Level::from_id("fast"), Level::Fastest);
         assert_eq!(Level::from_id("fast").label(), "Fast");
-        assert_eq!(Level::from_id("fast").description(), "Fastest, less compression");
+        assert_eq!(
+            Level::from_id("fast").description(),
+            "Fastest, less compression"
+        );
         assert_eq!(Level::from_id("maximum"), Level::Slowest);
         assert_eq!(Level::from_id("slow"), Level::Slowest);
         assert_eq!(Level::from_id("slow").label(), "Slow");

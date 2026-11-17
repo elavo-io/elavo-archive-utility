@@ -556,7 +556,10 @@ fn extract_fallback(
         return Err(missing(format));
     }
     let work = tempfile::tempdir().map_err(Error::from)?;
-    if matches!(format, Format::Zip | Format::Apk | Format::Jar | Format::Ipa) {
+    if matches!(
+        format,
+        Format::Zip | Format::Apk | Format::Jar | Format::Ipa
+    ) {
         if let Some(unzip) = tools.unzip.clone() {
             let ran = process::run(
                 Spec {

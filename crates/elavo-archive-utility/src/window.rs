@@ -14,8 +14,8 @@ use gtk::{gdk, gio, glib};
 
 use elavo_archive_utility_core::{
     all_archives, create_choices, parse_size, suggest_archive_path, suggest_extract_parent, Cancel,
-    SPLIT_PRESETS,
     CompressRequest, ExtractRequest, Format, FormatOptions, Level, Outcome, Progress, Settings,
+    SPLIT_PRESETS,
 };
 
 const WIDTH: i32 = 420;
@@ -368,10 +368,7 @@ impl Window {
         add("open-archive", Box::new(|window| window.pick(true)));
         add("cancel", Box::new(|window| window.cancel.borrow().cancel()));
         add("close", Box::new(|window| window.window.close()));
-        add(
-            "back",
-            Box::new(|window| window.show_idle()),
-        );
+        add("back", Box::new(|window| window.show_idle()));
 
         let format_action = gio::SimpleAction::new("format", Some(glib::VariantTy::STRING));
         let weak = Rc::downgrade(self);
@@ -395,7 +392,8 @@ impl Window {
             }
         }
 
-        let progress = gio::SimpleAction::new("progress", Some(glib::VariantTy::new("(ds)").unwrap()));
+        let progress =
+            gio::SimpleAction::new("progress", Some(glib::VariantTy::new("(ds)").unwrap()));
         let weak = Rc::downgrade(self);
         progress.connect_activate(move |_, value| {
             let Some(window) = weak.upgrade() else { return };
@@ -423,7 +421,9 @@ impl Window {
         finish.connect_activate(move |_, value| {
             let Some(window) = weak.upgrade() else { return };
             window.busy.set(false);
-            let text = value.and_then(|v| v.str()).unwrap_or("err\nSomething went wrong.");
+            let text = value
+                .and_then(|v| v.str())
+                .unwrap_or("err\nSomething went wrong.");
             let (kind, detail) = text.split_once('\n').unwrap_or(("err", text));
             if kind == "ok" {
                 let path = PathBuf::from(detail);
@@ -541,7 +541,9 @@ impl Window {
         while let Some(widget) = child {
             let next = widget.next_sibling();
             if let Some(row) = widget.downcast_ref::<gtk::ListBoxRow>() {
-                let on = choices.get(index).is_some_and(|choice| choice.format == selected);
+                let on = choices
+                    .get(index)
+                    .is_some_and(|choice| choice.format == selected);
                 if let Some(contents) = row.child() {
                     set_check(&contents, on);
                 }
@@ -609,12 +611,18 @@ impl Window {
         };
         self.progress_title
             .set_label(&format!("Compressing {}", file_name(&output)));
-        self.launch(move |cancel, progress| elavo_archive_utility_core::compress(&req, cancel, progress));
+        self.launch(move |cancel, progress| {
+            elavo_archive_utility_core::compress(&req, cancel, progress)
+        });
     }
 
     fn begin_extract(&self, paths: Vec<PathBuf>) {
         let password = self.password.text().to_string();
-        let password = if password.is_empty() { None } else { Some(password) };
+        let password = if password.is_empty() {
+            None
+        } else {
+            Some(password)
+        };
         self.last_extract.replace(paths.clone());
         self.extract_with(paths, password);
     }
@@ -710,7 +718,10 @@ impl Window {
 
     fn launch<F>(&self, work: F)
     where
-        F: FnOnce(&Cancel, Box<dyn FnMut(Progress) + Send>) -> elavo_archive_utility_core::Result<Outcome>
+        F: FnOnce(
+                &Cancel,
+                Box<dyn FnMut(Progress) + Send>,
+            ) -> elavo_archive_utility_core::Result<Outcome>
             + Send
             + 'static,
     {
@@ -780,17 +791,21 @@ impl Window {
         dialog.set_modal(true);
         let window = self.window.clone();
         if archive {
-            dialog.open(Some(&self.window), None::<&gio::Cancellable>, move |result| {
-                if let Ok(file) = result {
-                    if let Some(path) = file.path() {
-                        let _ = gtk::prelude::WidgetExt::activate_action(
-                            &window,
-                            "win.extract-paths",
-                            Some(&path.display().to_string().to_variant()),
-                        );
+            dialog.open(
+                Some(&self.window),
+                None::<&gio::Cancellable>,
+                move |result| {
+                    if let Ok(file) = result {
+                        if let Some(path) = file.path() {
+                            let _ = gtk::prelude::WidgetExt::activate_action(
+                                &window,
+                                "win.extract-paths",
+                                Some(&path.display().to_string().to_variant()),
+                            );
+                        }
                     }
-                }
-            });
+                },
+            );
         } else {
             dialog.open_multiple(
                 Some(&self.window),
@@ -925,14 +940,21 @@ impl Window {
         match zone {
             Zone::Compress => self.begin_compress(paths),
             Zone::Extract => {
-                if paths.iter().any(|path| elavo_archive_utility_core::detect(path).is_none())
-                    && !paths.iter().all(|path| elavo_archive_utility_core::detect(path).is_some())
+                if paths
+                    .iter()
+                    .any(|path| elavo_archive_utility_core::detect(path).is_none())
+                    && !paths
+                        .iter()
+                        .all(|path| elavo_archive_utility_core::detect(path).is_some())
                     && paths.len() == 1
                     && elavo_archive_utility_core::detect(&paths[0]).is_none()
                 {
                     // Unrecognised files are still offered to 7-Zip.
                     self.begin_extract(paths);
-                } else if all_archives(&paths) || paths.iter().any(|path| elavo_archive_utility_core::detect(path).is_some())
+                } else if all_archives(&paths)
+                    || paths
+                        .iter()
+                        .any(|path| elavo_archive_utility_core::detect(path).is_some())
                 {
                     self.begin_extract(paths);
                 } else {
@@ -948,8 +970,14 @@ pub fn wire_extra(window: &Rc<Window>) {
     let weak = Rc::downgrade(window);
     compress.connect_activate(move |_, value| {
         let Some(window) = weak.upgrade() else { return };
-        let Some(text) = value.and_then(|v| v.str()) else { return };
-        let paths = text.lines().filter(|l| !l.is_empty()).map(PathBuf::from).collect();
+        let Some(text) = value.and_then(|v| v.str()) else {
+            return;
+        };
+        let paths = text
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(PathBuf::from)
+            .collect();
         window.begin_compress(paths);
     });
     window.window.add_action(&compress);
@@ -958,8 +986,14 @@ pub fn wire_extra(window: &Rc<Window>) {
     let weak = Rc::downgrade(window);
     extract.connect_activate(move |_, value| {
         let Some(window) = weak.upgrade() else { return };
-        let Some(text) = value.and_then(|v| v.str()) else { return };
-        let paths = text.lines().filter(|l| !l.is_empty()).map(PathBuf::from).collect();
+        let Some(text) = value.and_then(|v| v.str()) else {
+            return;
+        };
+        let paths = text
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(PathBuf::from)
+            .collect();
         window.begin_extract(paths);
     });
     window.window.add_action(&extract);
@@ -968,10 +1002,22 @@ pub fn wire_extra(window: &Rc<Window>) {
     let weak = Rc::downgrade(window);
     retry.connect_activate(move |_, value| {
         let Some(window) = weak.upgrade() else { return };
-        let Some(text) = value.and_then(|v| v.str()) else { return };
-        let Some((password, rest)) = text.split_once('\n') else { return };
-        let paths = rest.lines().filter(|l| !l.is_empty()).map(PathBuf::from).collect();
-        let password = if password.is_empty() { None } else { Some(password.to_string()) };
+        let Some(text) = value.and_then(|v| v.str()) else {
+            return;
+        };
+        let Some((password, rest)) = text.split_once('\n') else {
+            return;
+        };
+        let paths = rest
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(PathBuf::from)
+            .collect();
+        let password = if password.is_empty() {
+            None
+        } else {
+            Some(password.to_string())
+        };
         window.extract_with(paths, password);
     });
     window.window.add_action(&retry);
@@ -1230,7 +1276,7 @@ fn options_page() -> (
         gtk::EntryIconPosition::Secondary,
         Some("view-reveal-symbolic"),
     );
-        password.connect_icon_release(|entry, position| {
+    password.connect_icon_release(|entry, position| {
         if position == gtk::EntryIconPosition::Secondary {
             let show = !entry.property::<bool>("visibility");
             entry.set_visibility(show);
@@ -1349,7 +1395,10 @@ fn done_page() -> (gtk::Box, gtk::Label, gtk::Label, gtk::Button) {
         .wrap(true)
         .justify(gtk::Justification::Center)
         .build();
-    let row = gtk::Box::builder().spacing(8).halign(gtk::Align::Center).build();
+    let row = gtk::Box::builder()
+        .spacing(8)
+        .halign(gtk::Align::Center)
+        .build();
     let show = gtk::Button::builder()
         .label("Show")
         .css_classes(["au-primary"])
@@ -1429,7 +1478,10 @@ fn tick_label_x(trough_x: f64, trough_width: f64, index: f64, label_width: f64) 
 fn label_text_width(label: &gtk::Label) -> i32 {
     // Widget::measure starts reporting the allocated width once margins are set,
     // which would slide the labels every frame. The text layout does not.
-    label.create_pango_layout(Some(&label.label())).pixel_size().0
+    label
+        .create_pango_layout(Some(&label.label()))
+        .pixel_size()
+        .0
 }
 
 fn mark_centers(scale: &gtk::Scale) -> Vec<f64> {
@@ -1522,8 +1574,16 @@ fn draw_badge(cr: &gtk::cairo::Context, format: Format, width: f64, height: f64)
     cr.close_path();
     let _ = cr.fill();
     cr.set_source_rgb(1.0, 1.0, 1.0);
-    let _ = cr.select_font_face("Roboto", gtk::cairo::FontSlant::Normal, gtk::cairo::FontWeight::Bold);
-    let size = if format.badge().chars().count() > 3 { 6.5 } else { 8.0 };
+    let _ = cr.select_font_face(
+        "Roboto",
+        gtk::cairo::FontSlant::Normal,
+        gtk::cairo::FontWeight::Bold,
+    );
+    let size = if format.badge().chars().count() > 3 {
+        6.5
+    } else {
+        8.0
+    };
     cr.set_font_size(size);
     let text = format.badge();
     if let Ok(extents) = cr.text_extents(text) {
@@ -1595,4 +1655,3 @@ fn reveal_path(window: &impl IsA<gtk::Window>, path: &std::path::Path) {
     let context = display.app_launch_context();
     let _ = gio::AppInfo::launch_default_for_uri(&uri, Some(&context));
 }
-

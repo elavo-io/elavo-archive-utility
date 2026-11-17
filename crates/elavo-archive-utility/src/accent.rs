@@ -166,10 +166,7 @@ fn portal_color() -> Option<(String, String)> {
     let reply = proxy
         .call_sync(
             "Read",
-            Some(
-                &("org.freedesktop.appearance", "accent-color")
-                    .to_variant(),
-            ),
+            Some(&("org.freedesktop.appearance", "accent-color").to_variant()),
             gio::DBusCallFlags::NONE,
             800,
             gio::Cancellable::NONE,
@@ -250,7 +247,8 @@ mod tests {
 
     #[test]
     fn elavo_blue_file_is_the_fallback() {
-        let css = ":root { --accent-bg-color: var(--elavo-user-accent, var(--elavo-accent-blue)); }";
+        let css =
+            ":root { --accent-bg-color: var(--elavo-user-accent, var(--elavo-accent-blue)); }";
         assert_eq!(
             parse_elavo_css(css),
             Some(("#0860f2".into(), "#ffffff".into()))
