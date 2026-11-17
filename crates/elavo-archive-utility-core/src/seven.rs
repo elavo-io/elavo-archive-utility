@@ -11,6 +11,8 @@ use crate::settings::Conflict;
 use crate::tools::{self, Tools};
 use crate::transplant;
 
+// The arguments are the archive request's fields, passed through as is.
+#[allow(clippy::too_many_arguments)]
 pub fn compress(
     inputs: &[PathBuf],
     output: &Path,
@@ -111,6 +113,8 @@ pub fn compress(
     Ok(inputs.len() as u64)
 }
 
+// The arguments are the archive request's fields, passed through as is.
+#[allow(clippy::too_many_arguments)]
 fn compress_zip_split(
     zip: &Path,
     inputs: &[PathBuf],
@@ -249,6 +253,8 @@ pub fn list(archive: &Path, password: Option<&str>, cancel: &Cancel) -> Result<V
     Ok(paths_from_slt(&ran.text))
 }
 
+// The arguments are the archive request's fields, passed through as is.
+#[allow(clippy::too_many_arguments)]
 fn compress_args(
     format: Format,
     level: Level,
@@ -413,6 +419,8 @@ pub fn test_archive(archive: &Path, password: Option<&str>, cancel: &Cancel) -> 
     check(&ran, password.is_some())
 }
 
+// The arguments are the archive request's fields, passed through as is.
+#[allow(clippy::too_many_arguments)]
 fn run_tool(
     program: PathBuf,
     args: Vec<String>,
@@ -542,6 +550,8 @@ fn missing(format: Format) -> Error {
     }
 }
 
+// The arguments are the archive request's fields, passed through as is.
+#[allow(clippy::too_many_arguments)]
 fn extract_fallback(
     tools: &Tools,
     archive: &Path,

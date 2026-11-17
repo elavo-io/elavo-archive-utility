@@ -411,6 +411,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::field_reassign_with_default)]
     fn settings_round_trip_and_skip_unknown_keys() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config.ini");

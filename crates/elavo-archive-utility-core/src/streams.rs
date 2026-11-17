@@ -307,10 +307,8 @@ fn decode_to_file(
     }
     // Last resort for formats 7-Zip knows (.Z, lzma) when the dedicated
     // program is missing.
-    if matches!(codec, Format::Compress | Format::Lzma) {
-        if tools.seven_zip.is_some() {
-            return decode_with_seven(archive, dest, cancel, progress);
-        }
+    if matches!(codec, Format::Compress | Format::Lzma) && tools.seven_zip.is_some() {
+        return decode_with_seven(archive, dest, cancel, progress);
     }
     Err(missing(codec.extract_tool(), "open this"))
 }

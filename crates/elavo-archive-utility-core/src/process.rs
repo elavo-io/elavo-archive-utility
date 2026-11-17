@@ -266,14 +266,9 @@ pub fn password_problem(text: &str, supplied: bool) -> Option<Error> {
     if !hit {
         return None;
     }
-    if supplied
-        && (lower.contains("wrong")
-            || lower.contains("bad password")
-            || lower.contains("incorrect")
-            || lower.contains("cannot open encrypted"))
-    {
-        Some(Error::WrongPassword)
-    } else if supplied {
+    // Any password failure after a password was given means it was wrong,
+    // whatever wording the tool used.
+    if supplied {
         Some(Error::WrongPassword)
     } else {
         Some(Error::PasswordRequired)
@@ -477,11 +472,11 @@ pub fn run_on_pty_times(spec: Spec, password: &str, times: u8, cancel: &Cancel) 
 }
 
 pub fn volume_switch(bytes: u64) -> String {
-    if bytes >= (1 << 30) && bytes % (1 << 30) == 0 {
+    if bytes >= (1 << 30) && bytes.is_multiple_of(1 << 30) {
         format!("-v{}g", bytes >> 30)
-    } else if bytes >= (1 << 20) && bytes % (1 << 20) == 0 {
+    } else if bytes >= (1 << 20) && bytes.is_multiple_of(1 << 20) {
         format!("-v{}m", bytes >> 20)
-    } else if bytes >= (1 << 10) && bytes % (1 << 10) == 0 {
+    } else if bytes >= (1 << 10) && bytes.is_multiple_of(1 << 10) {
         format!("-v{}k", bytes >> 10)
     } else {
         format!("-v{bytes}b")

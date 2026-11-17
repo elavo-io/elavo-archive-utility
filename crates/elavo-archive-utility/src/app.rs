@@ -127,10 +127,10 @@ fn show(app: &gtk::Application, paths: Vec<PathBuf>, autostart: bool) {
 }
 
 fn autostart() -> bool {
-    match std::env::var("ELAVO_ARCHIVE_UTILITY_NO_AUTOSTART") {
-        Ok(value) if value != "0" && !value.is_empty() => false,
-        _ => true,
-    }
+    !matches!(
+        std::env::var("ELAVO_ARCHIVE_UTILITY_NO_AUTOSTART"),
+        Ok(value) if value != "0" && !value.is_empty()
+    )
 }
 
 fn load_css() {

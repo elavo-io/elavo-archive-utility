@@ -482,15 +482,12 @@ impl Extractor {
         entry.grab_focus();
     }
 
+    /// Close once every row is gone. Rows that failed stay up so their
+    /// error can be read; the window closes once they are dismissed.
     fn maybe_close(&self) {
-        let rows = self.rows.borrow();
-        if rows.is_empty() {
-            drop(rows);
+        let empty = self.rows.borrow().is_empty();
+        if empty {
             self.window.close();
-            return;
-        }
-        if rows.iter().any(|row| !row.failed.get()) {
-            return;
         }
     }
 }

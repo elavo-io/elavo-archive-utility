@@ -91,7 +91,7 @@ pub fn archive_stem(file_name: &str) -> String {
 }
 
 fn strip_suffix_ci<'a>(original: &'a str, lower: &str, suffix: &str) -> Option<&'a str> {
-    if lower.ends_with(suffix) && original.len() >= suffix.len() + 1 {
+    if lower.ends_with(suffix) && original.len() > suffix.len() {
         Some(&original[..original.len() - suffix.len()])
     } else {
         None

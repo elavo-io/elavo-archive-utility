@@ -301,6 +301,8 @@ fn place_new(path: &Path, conflict: Conflict) -> Result<Option<PathBuf>> {
     }
 }
 
+// The arguments are the archive request's fields, passed through as is.
+#[allow(clippy::too_many_arguments)]
 fn append_path<W: Write>(
     builder: &mut Builder<W>,
     disk: &Path,

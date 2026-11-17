@@ -956,7 +956,7 @@ fn ustar_with_name(name: &[u8], data: &[u8]) -> Vec<u8> {
     let mut out = header;
     out.extend_from_slice(data);
     out.resize(out.len() + (512 - data.len() % 512) % 512, 0);
-    out.extend(std::iter::repeat(0).take(1024));
+    out.extend(std::iter::repeat_n(0, 1024));
     out
 }
 
