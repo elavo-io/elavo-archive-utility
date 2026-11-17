@@ -1,267 +1,125 @@
-@define-color accent_color #0860f2;
-@define-color accent_bg_color #0860f2;
-@define-color accent_fg_color #ffffff;
+/* Archive Utility. Window frames, title bars, window buttons, dialogs,
+ * colors, and the accent all come from the GTK theme (Elavo, or whatever
+ * theme is active). Only shape and spacing are set here; where a tint is
+ * needed it is derived from the theme's text color or accent. */
 
-/* Archive Utility. The shapes follow the Elavo desktop apps: 16px window,
- * 12px cards inset by 4px, pill buttons, and the dark palette
- * (#242424 / #1c1c1c / #ebebeb, accent @accent_color). Nothing here is copied
- * from another project; the colours and radii are the ones those apps use. */
-
-window.au {
-  color: #ebebeb;
-  background-color: transparent;
-  font-family: "Roboto", sans-serif;
-}
-
-/* Shadow and the hairline are painted in this margin, inside the window
- * buffer, so a compositor can blend them. The margin is removed when the
- * display cannot composite. */
-.au-frame {
-  margin: 18px;
-  background-color: #242424;
-  border-radius: 16px;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.18),
-    0 2px 6px rgba(0, 0, 0, 0.2),
-    0 12px 32px rgba(0, 0, 0, 0.38);
-}
-
-/* One rounded surface. The title bar stays transparent so a square header
- * cannot cut the corner, and the shadow is feathered instead of a 1px ring. */
-window.au,
-window.au.csd,
-window.au > decoration {
-  border-radius: 16px;
-  border: none;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 2px 6px rgba(0, 0, 0, 0.16),
-    0 10px 28px rgba(0, 0, 0, 0.22);
-}
-
-window.au .titlebar,
-window.au headerbar,
-window.au .au-header {
-  background-color: transparent;
-  background-image: none;
-  color: #ebebeb;
-  border: none;
-  box-shadow: none;
-  border-radius: 16px 16px 0 0;
-}
-
-.au-header {
-  padding: 10px 12px 6px 14px;
-}
-
-/* The extract window's header is only the traffic lights. A theme header
- * bar is much taller than those buttons, which left a gap above them. */
-window.au-extract-window headerbar,
-window.au-extract-window .titlebar {
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-}
-
-window.au-extract-window .au-header,
-window.au-extract-window .au-extract-header {
-  min-height: 0;
-  padding: 10px 14px 0 14px;
-}
-
-window.au-extract-window windowcontrols {
-  margin: 0;
-  padding: 0;
-}
-
-window.au windowcontrols > button,
-window.au windowcontrols > button.image-button {
-  min-width: 14px;
-  min-height: 14px;
-  margin: 0 4px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  box-shadow: none;
-  outline: none;
-  background-image: none;
-  background-color: transparent;
-}
-
-windowcontrols > button > image {
-  opacity: 0;
-  -gtk-icon-size: 8px;
-}
-
-windowcontrols:hover > button > image {
-  opacity: 0.85;
-}
-
-window.au windowcontrols > button.close {
-  background-color: #ff5f57;
-  background-image: none;
-}
-
-window.au windowcontrols > button.minimize {
-  background-color: #febc2e;
-  background-image: none;
-}
-
-window.au windowcontrols > button.maximize {
-  background-color: #28c840;
-  background-image: none;
-}
-
+/* Title bar: the format pill sits at the end of the theme's header bar. */
 .au-pill {
   border-radius: 999px;
-  background-color: rgba(255, 255, 255, 0.08);
-  background-image: none;
-  border: none;
-  box-shadow: none;
-  padding: 6px 8px 6px 6px;
-}
-
-.au-pill-main,
-.au-pill-main:hover,
-.au-pill-main:checked,
-.au-pill-main:active,
-.au-pill-chevron > button,
-.au-pill-chevron > button:hover,
-.au-pill-chevron > button:active,
-.au-pill-chevron > button:checked {
-  border: none;
-  outline: none;
-  box-shadow: none;
-  background: none;
-  background-image: none;
-  border-radius: 999px;
-  margin: 0;
-  padding: 0 2px;
-  min-height: 0;
-  min-width: 0;
+  background-color: color-mix(in srgb, currentColor 8%, transparent);
+  padding: 3px 6px 3px 4px;
 }
 
 .au-pill-chevron > button {
+  min-height: 0;
+  min-width: 0;
   padding: 0 2px 0 4px;
+  margin: 0;
+  border: none;
+  box-shadow: none;
+  background: none;
 }
 
 .au-badge {
-  margin: 0 2px 0 2px;
+  margin: 0 2px;
 }
 
 .au-format-name {
   font-weight: bold;
   font-size: 0.95em;
-  margin-left: 6px;
+  margin-left: 4px;
 }
 
-.au-drop {
-  background-color: #242424;
+/* Format menu */
+popover.au-menu > contents {
+  padding: 6px;
 }
 
-.au-zone {
-  border-radius: 12px;
-  margin: 4px 8px;
-  transition: background-color 160ms ease-out, box-shadow 160ms ease-out;
+popover.au-menu row {
+  padding: 4px 8px;
+  border-radius: 6px;
 }
 
-.au-zone.over {
-  background-color: alpha(@accent_color, 0.16);
-  box-shadow: inset 0 0 0 1px alpha(@accent_color, 0.35);
+popover.au-menu row.au-missing {
+  opacity: 0.55;
 }
 
-.au-extract-title {
-  font-weight: bold;
-  font-size: 1.05em;
-  color: #f2f2f2;
-}
-
-.au-compress-title {
-  color: #9b9b9b;
-  font-size: 0.92em;
-}
-
-.au-hint {
-  color: #f2f2f2;
+.au-accel {
+  opacity: 0.55;
   font-size: 0.86em;
+  margin-left: 12px;
 }
 
+.au-check {
+  margin-left: 8px;
+}
+
+/* Options page */
 .au-options {
-  padding: 4px 12px 10px;
+  padding: 8px 12px 12px;
 }
 
 .au-card {
-  padding: 14px 22px 16px;
+  padding: 14px 18px 16px;
   border-radius: 12px;
-  border: none;
-  box-shadow: none;
-  background-image: none;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: color-mix(in srgb, currentColor 5%, transparent);
 }
 
 .au-method {
   font-weight: bold;
 }
 
-.au-dim {
-  color: #9b9b9b;
+.au-small,
+.au-hint {
   font-size: 0.86em;
 }
 
 scale.au-level {
-  margin-top: 6px;
-  padding: 0;
-  min-height: 22px;
-}
-
-scale.au-level trough slider {
-  background: #f2f2f2;
-  background-image: none;
-  border-image: none;
-  box-shadow: none;
-  outline: none;
-  border: none;
-  border-radius: 50%;
-  min-width: 16px;
-  min-height: 16px;
-  margin: -6px 0;
-  padding: 0;
-}
-
-/* Ticks sit below the round knob so the current stop does not stick out of it. */
-scale.au-level marks indicator {
-  min-width: 1px;
-  min-height: 6px;
-  margin-top: 10px;
-  border-radius: 0;
-  background-color: rgba(255, 255, 255, 0.45);
-}
-
-scale.au-level marks indicator:nth-child(3),
-scale.au-level marks indicator:nth-child(5) {
-  min-width: 4px;
-  min-height: 4px;
-  margin-top: 11px;
-  border-radius: 999px;
+  margin-top: 4px;
 }
 
 .au-ticks {
-  min-height: 18px;
+  margin-top: -2px;
 }
 
-scale.au-level trough {
-  min-height: 4px;
-  border-radius: 999px;
-  background-color: rgba(255, 255, 255, 0.16);
+.au-split-menu {
+  padding: 4px;
 }
 
-scale.au-level highlight {
-  border-radius: 999px;
-  background-color: @accent_color;
+/* Drop targets */
+.au-zone {
+  border-radius: 12px;
+  margin: 6px 10px;
+  transition: background-color 160ms ease-out, box-shadow 160ms ease-out;
 }
 
+.au-zone.over {
+  background-color: color-mix(in srgb, var(--accent-bg-color, @theme_selected_bg_color) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-bg-color, @theme_selected_bg_color) 40%, transparent);
+}
+
+.au-compress {
+  margin-bottom: 10px;
+}
+
+.au-extract-title {
+  font-weight: bold;
+  font-size: 1.05em;
+}
+
+.au-compress-title {
+  opacity: 0.7;
+  font-size: 0.92em;
+}
+
+/* Progress and done pages */
+.au-center {
+  padding: 0 28px;
+}
+
+/* Extraction window */
 .au-jobs {
-  padding: 2px 14px 10px;
+  padding: 4px 14px 12px;
 }
 
 .au-job {
@@ -269,242 +127,31 @@ scale.au-level highlight {
 }
 
 .au-job + .au-job {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .au-job-title {
   font-weight: 500;
-  font-size: 0.95em;
-  color: #f2f2f2;
 }
 
-.au-round {
-  border-radius: 999px;
+button.au-round {
   min-width: 22px;
   min-height: 22px;
   padding: 0;
-  background-color: rgba(255, 255, 255, 0.08);
-  border: none;
-  box-shadow: none;
 }
 
-.au-round:hover {
-  background-color: rgba(255, 255, 255, 0.16);
-}
-
-.au-error {
-  color: #d93b36;
-}
-
-.au-split-menu {
-  padding: 4px;
-  min-width: 28px;
-  min-height: 28px;
-  border-radius: 7px;
-  background-color: #1c1c1c;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.au-split-menu:disabled,
-window.au entry:disabled {
-  opacity: 0.42;
-}
-
-.au-ticks label {
-  color: #9b9b9b;
-  font-size: 0.78em;
-}
-
-window.au entry {
-  min-height: 28px;
-  border-radius: 7px;
-  background-color: #1c1c1c;
-  color: #f2f2f2;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  caret-color: @accent_color;
-}
-
-window.au entry > text > placeholder {
-  color: #7e7e7e;
-}
-
-window.au checkbutton {
-  min-height: 26px;
-}
-
-window.au checkbutton check:checked {
-  background-color: @accent_color;
-  border-color: @accent_color;
-  color: @accent_fg_color;
-}
-
-window.au checkbutton label {
-  font-size: 0.92em;
-}
-
-button.au-primary {
-  border-radius: 7px;
-  padding: 4px 14px;
-  min-height: 28px;
-  background-color: @accent_color;
-  color: #ffffff;
-}
-
-button.au-quiet {
-  border-radius: 7px;
-  background: none;
-  box-shadow: none;
-  border: none;
-  color: #ebebeb;
-}
-
-.au-center {
-  padding: 28px 20px;
-}
-
-progressbar.au-progress,
-progressbar.au-progress trough,
-progressbar.au-progress progress,
-progressbar.au-progress trough progress {
-  background-image: none;
-  border: none;
-  box-shadow: none;
-  outline: none;
-  padding: 0;
-  margin: 0;
-}
-
-progressbar.au-progress trough {
-  min-height: 4px;
-  border-radius: 999px;
-  background-color: rgba(255, 255, 255, 0.16);
-}
-
-progressbar.au-progress progress,
-progressbar.au-progress trough progress {
-  min-height: 4px;
-  border-radius: 999px;
-  background-color: @accent_color;
-}
-
-popover.au-menu {
-  background: transparent;
-  padding: 0;
-  margin: 0;
-}
-
-/* Without a compositor the popover's transparent shadow margin is a black
- * rectangle, and a partially clipped window radius reads as two round corners.
- * Draw both as solid rectangles instead. */
-window.au.au-flat,
-window.au.au-flat.csd,
-window.au.au-flat > decoration,
-window.au.au-flat headerbar,
-window.au.au-flat .titlebar,
-window.au.au-flat .au-header,
-window.au.au-flat .au-frame {
-  border-radius: 0;
-  box-shadow: none;
-}
-
-window.au.au-flat {
-  background-color: #242424;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-window.au.au-flat .au-frame {
-  margin: 0;
-  background-color: #242424;
-}
-
-popover.au-flat,
-popover.au-flat > contents {
-  background-color: #2c2c2e;
-  box-shadow: none;
-  margin: 0;
-  padding: 5px;
-}
-
-popover.au-menu > contents {
-  background-color: #2c2c2e;
-  color: #ebebeb;
-  border-radius: 10px;
-  padding: 5px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-}
-
-popover.au-menu list {
-  background: transparent;
-}
-
-popover.au-menu row {
-  border-radius: 5px;
-  padding: 2px 8px;
-  min-height: 28px;
-}
-
-popover.au-menu row:hover,
-popover.au-menu row:selected {
-  background-color: @accent_color;
-  color: #ffffff;
-}
-
-popover.au-menu row.au-missing {
-  opacity: 0.45;
-}
-
-.au-accel {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 0.82em;
-}
-
-.au-check {
-  font-weight: bold;
-  color: @accent_color;
-}
-
-popover.au-menu row:hover .au-check,
-popover.au-menu row:selected .au-check,
-popover.au-menu row:hover .au-accel,
-popover.au-menu row:selected .au-accel {
-  color: #ffffff;
-}
-
-window.au-prefs {
-  color: #ebebeb;
-  background-color: #242424;
-  font-family: "Roboto", sans-serif;
-}
-
-window.au-prefs,
-window.au-prefs > decoration {
-  border-radius: 16px;
+/* Dialogs */
+.au-dialog-body,
+.au-prefs-body {
+  padding: 16px 18px 18px;
 }
 
 .au-prefs-body {
-  padding: 16px 18px 14px;
+  min-width: 420px;
 }
 
 .au-section {
-  font-size: 0.82em;
   font-weight: bold;
-  color: rgba(235, 235, 235, 0.5);
+  font-size: 0.9em;
   margin-top: 4px;
-}
-
-window.au-prefs entry,
-window.au-prefs dropdown,
-window.au-prefs button {
-  border-radius: 7px;
-}
-
-tooltip.background {
-  background-color: #1c1c1c;
-  color: #f2f2f2;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-}
-
-tooltip.background label {
-  color: #f2f2f2;
 }

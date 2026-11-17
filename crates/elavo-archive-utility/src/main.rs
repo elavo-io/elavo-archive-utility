@@ -1,8 +1,8 @@
 //! Archive Utility compresses files and extracts archives.
 
-mod accent;
 mod app;
 mod cli;
+mod dialog;
 mod extract;
 mod prefs;
 mod window;

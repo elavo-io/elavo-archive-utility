@@ -500,6 +500,67 @@ impl Format {
         }
     }
 
+    /// Icon names for this type, most specific first: the freedesktop MIME
+    /// type with "/" as "-", then older aliases. Callers append a generic
+    /// fallback.
+    pub fn icon_names(self) -> &'static [&'static str] {
+        match self {
+            Format::SevenZ => &["application-x-7z-compressed"],
+            Format::Zip => &["application-zip", "application-x-zip"],
+            Format::Tar => &["application-x-tar"],
+            Format::TarGz => &["application-x-compressed-tar"],
+            Format::TarXz => &["application-x-xz-compressed-tar"],
+            Format::TarBz2 => &[
+                "application-x-bzip2-compressed-tar",
+                "application-x-bzip-compressed-tar",
+            ],
+            Format::TarZst => &["application-x-zstd-compressed-tar"],
+            Format::TarLz => &["application-x-lzip-compressed-tar"],
+            Format::TarLz4 => &["application-x-lz4-compressed-tar"],
+            Format::TarBr => &["application-x-brotli-compressed-tar", "application-x-tar"],
+            Format::TarLrz => &["application-x-lrzip-compressed-tar"],
+            Format::TarSz => &["application-x-snappy-framed", "application-x-tar"],
+            Format::TarZ => &["application-x-tarz"],
+            Format::TarLzma => &["application-x-lzma-compressed-tar"],
+            Format::Gz => &["application-gzip", "application-x-gzip"],
+            Format::Xz => &["application-x-xz"],
+            Format::Bz2 => &["application-x-bzip2", "application-x-bzip"],
+            Format::Zst => &["application-zstd"],
+            Format::Lzip => &["application-x-lzip"],
+            Format::Lz4 => &["application-x-lz4"],
+            Format::Brotli => &["application-x-brotli"],
+            Format::Lrzip => &["application-x-lrzip"],
+            Format::Snappy => &["application-x-snappy-framed"],
+            Format::Rar => &["application-vnd.rar", "application-x-rar"],
+            Format::Iso => &["application-x-cd-image", "application-x-iso9660-image"],
+            Format::Wim => &["application-x-ms-wim"],
+            Format::Dmg => &["application-x-apple-diskimage"],
+            Format::Exe => &[
+                "application-x-ms-dos-executable",
+                "application-x-msdownload",
+            ],
+            Format::Msi => &["application-x-msi", "application-x-ms-installer"],
+            Format::Cab => &["application-vnd.ms-cab-compressed"],
+            Format::Lzh => &["application-x-lha"],
+            Format::Arj => &["application-x-arj"],
+            Format::Cpio => &["application-x-cpio"],
+            Format::Rpm => &["application-x-rpm"],
+            Format::Deb => &["application-vnd.debian.binary-package", "application-x-deb"],
+            Format::Xar => &["application-x-xar"],
+            Format::Ar => &["application-x-archive"],
+            Format::Chm => &["application-vnd.ms-htmlhelp"],
+            Format::Compress => &["application-x-compress"],
+            Format::Lzma => &["application-x-lzma"],
+            Format::SquashFs => &["application-vnd.squashfs"],
+            Format::Vhd => &["application-x-vhd-disk"],
+            Format::Vmdk => &["application-x-vmdk-disk"],
+            Format::Qcow => &["application-x-qemu-disk"],
+            Format::Apk => &["application-vnd.android.package-archive"],
+            Format::Jar => &["application-x-java-archive"],
+            Format::Ipa => &["application-x-ios-app"],
+        }
+    }
+
     pub fn supports_password(self) -> bool {
         matches!(self.pill(), Format::SevenZ | Format::Zip)
     }
@@ -1013,24 +1074,14 @@ pub enum Level {
 }
 
 impl Level {
-    /// Tick caption. Stops 3 and 5 are dots, so they have no caption.
-    pub fn label(self) -> &'static str {
-        match self {
-            Level::Store => "Store",
-            Level::Fastest => "Fast",
-            Level::Fast | Level::High => "",
-            Level::Normal => "Normal",
-            Level::Slowest => "Slow",
-        }
-    }
-
-    /// The sentence next to "Method:".
+    /// The plain words for a stop, shown above the slider. The two ends
+    /// also label the slider's ends.
     pub fn description(self) -> &'static str {
         match self {
             Level::Store => "No compression",
             Level::Fastest => "Fastest, less compression",
             Level::Fast => "Fast, less compression",
-            Level::Normal => "Normal",
+            Level::Normal => "Normal compression",
             Level::High => "Slow, more compression",
             Level::Slowest => "Slowest, more compression",
         }
@@ -1295,20 +1346,44 @@ mod tests {
     #[test]
     fn old_ids_land_on_the_labeled_stops() {
         assert_eq!(Level::from_id("fast"), Level::Fastest);
-        assert_eq!(Level::from_id("fast").label(), "Fast");
         assert_eq!(
             Level::from_id("fast").description(),
             "Fastest, less compression"
         );
         assert_eq!(Level::from_id("maximum"), Level::Slowest);
         assert_eq!(Level::from_id("slow"), Level::Slowest);
-        assert_eq!(Level::from_id("slow").label(), "Slow");
         assert_eq!(Level::STOPS.map(|level| level.seven()), [0, 1, 3, 5, 7, 9]);
-        let captions: Vec<_> = Level::STOPS
-            .into_iter()
-            .map(Level::label)
-            .filter(|label| !label.is_empty())
-            .collect();
-        assert_eq!(captions, ["Store", "Fast", "Normal", "Slow"]);
+        let words: Vec<_> = Level::STOPS.into_iter().map(Level::description).collect();
+        assert_eq!(
+            words,
+            [
+                "No compression",
+                "Fastest, less compression",
+                "Fast, less compression",
+                "Normal compression",
+                "Slow, more compression",
+                "Slowest, more compression",
+            ]
+        );
+    }
+
+    #[test]
+    fn every_format_names_a_mime_icon() {
+        for format in [
+            Format::Zip,
+            Format::SevenZ,
+            Format::TarZst,
+            Format::Deb,
+            Format::Rar,
+        ] {
+            let names = format.icon_names();
+            assert!(!names.is_empty(), "{format:?}");
+            assert!(names[0].starts_with("application-"), "{format:?}");
+        }
+        assert_eq!(Format::Zip.icon_names()[0], "application-zip");
+        assert_eq!(
+            Format::TarGz.icon_names()[0],
+            "application-x-compressed-tar"
+        );
     }
 }

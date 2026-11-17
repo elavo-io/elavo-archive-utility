@@ -14,13 +14,7 @@ pub fn present(
     changed: impl Fn() + 'static,
 ) {
     let changed = Rc::new(changed);
-    let window = gtk::Window::builder()
-        .transient_for(parent)
-        .modal(true)
-        .title("Preferences")
-        .default_width(460)
-        .css_classes(["au-prefs"])
-        .build();
+    let window = crate::dialog::window(parent, "Preferences", 460);
 
     let body = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
@@ -72,7 +66,7 @@ pub fn present(
     let dir_label = gtk::Label::builder()
         .xalign(0.0)
         .wrap(true)
-        .css_classes(["au-dim"])
+        .css_classes(["dim-label"])
         .label(match &settings.borrow().output {
             OutputPlace::Directory(dir) => dir.display().to_string(),
             OutputPlace::Beside => "No folder chosen yet".to_string(),
@@ -106,7 +100,7 @@ pub fn present(
     let close = gtk::Button::builder()
         .label("Close")
         .halign(gtk::Align::End)
-        .css_classes(["au-primary", "suggested-action"])
+        .css_classes(["suggested-action"])
         .build();
     body.append(&close);
     window.set_child(Some(&body));

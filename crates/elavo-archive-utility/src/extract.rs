@@ -7,7 +7,9 @@
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Arc;
 use std::time::Instant;
 
 use gtk::gdk;
@@ -121,38 +123,22 @@ fn current(app: &gtk::Application) -> Rc<Extractor> {
 
 impl Extractor {
     fn new(app: &gtk::Application) -> Rc<Self> {
+        // A plain window with the theme's title bar, like the File
+        // Operations window in Elavo Files.
         let window = gtk::ApplicationWindow::builder()
             .application(app)
-            .title("")
-            .default_width(476)
-            .resizable(true)
-            .css_classes(["au", "au-extract-window"])
+            .title("Extracting")
+            .default_width(460)
+            .resizable(false)
+            .css_classes(["background", "au", "au-extract-window"])
             .build();
-        // The traffic lights live in the client area, not a separate title
-        // bar. That bar's minimum height was the empty gap above the buttons.
-        let titlebar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        titlebar.set_height_request(0);
-        window.set_titlebar(Some(&titlebar));
-        flatten_without_compositor(&window);
-        let header = gtk::Box::builder()
-            .css_classes(["au-header", "au-extract-header"])
-            .build();
-        let controls = gtk::WindowControls::new(gtk::PackType::Start);
-        controls.set_valign(gtk::Align::Start);
-        controls.set_halign(gtk::Align::Start);
-        header.append(&controls);
+        window.set_titlebar(Some(&gtk::HeaderBar::new()));
         let list = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(0)
             .css_classes(["au-jobs"])
             .build();
-        let frame = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .css_classes(["au-frame"])
-            .build();
-        frame.append(&header);
-        frame.append(&list);
-        window.set_child(Some(&frame));
+        window.set_child(Some(&list));
         let (tx, rx) = mpsc::channel();
         let extractor = Rc::new(Self {
             window,
@@ -190,6 +176,22 @@ impl Extractor {
         let id = row.id;
         let cancel = row.cancel.clone();
         let tx = self.tx.clone();
+        // The process stays up until the worker has returned, even when the
+        // row is cancelled and the window closes, so the job's temporary
+        // folder is always removed.
+        let returned = Arc::new(AtomicBool::new(false));
+        if let Some(app) = self.window.application() {
+            let mut hold = Some(app.hold());
+            let returned = returned.clone();
+            glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
+                if returned.load(Ordering::Acquire) {
+                    hold.take();
+                    glib::ControlFlow::Break
+                } else {
+                    glib::ControlFlow::Continue
+                }
+            });
+        }
         std::thread::spawn(move || {
             let settings = Settings::load();
             let destination = suggest_extract_parent(&archive, &settings.output);
@@ -222,6 +224,7 @@ impl Extractor {
                 result,
                 needs_password,
             });
+            returned.store(true, Ordering::Release);
         });
     }
 
@@ -245,7 +248,6 @@ impl Extractor {
         let bar = gtk::ProgressBar::builder()
             .hexpand(true)
             .valign(gtk::Align::Center)
-            .css_classes(["au-progress"])
             .show_text(false)
             .build();
         let bar_row = gtk::Box::builder().spacing(8).build();
@@ -255,7 +257,7 @@ impl Extractor {
         let estimate = gtk::Label::builder()
             .label("Estimating…")
             .xalign(0.0)
-            .css_classes(["au-dim"])
+            .css_classes(["dim-label"])
             .build();
         let text = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -388,7 +390,7 @@ impl Extractor {
                 row.bar.set_fraction(0.0);
                 row.pause.set_visible(false);
                 row.estimate.set_label(&message);
-                row.estimate.add_css_class("au-error");
+                row.estimate.add_css_class("error");
                 self.maybe_close();
             }
         }
@@ -401,39 +403,10 @@ impl Extractor {
             return;
         }
         self.asking.set(true);
-        let dialog = gtk::Window::builder()
-            .transient_for(&self.window)
-            .modal(true)
-            .title("Password")
-            .default_width(300)
-            .css_classes(["au", "au-prefs"])
-            .build();
-        let box_ = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .spacing(10)
-            .margin_top(16)
-            .margin_bottom(16)
-            .margin_start(16)
-            .margin_end(16)
-            .build();
-        let label = gtk::Label::builder()
-            .label(&message)
-            .wrap(true)
-            .xalign(0.0)
-            .build();
-        let entry = gtk::PasswordEntry::builder()
-            .show_peek_icon(true)
-            .placeholder_text("Password")
-            .build();
-        let open = gtk::Button::builder()
-            .label("Open")
-            .css_classes(["au-primary"])
-            .halign(gtk::Align::End)
-            .build();
-        box_.append(&label);
-        box_.append(&entry);
-        box_.append(&open);
-        dialog.set_child(Some(&box_));
+        let prompt = crate::dialog::password(&self.window, &message);
+        let dialog = prompt.window.clone();
+        let entry = prompt.entry.clone();
+        let open = prompt.open.clone();
         let archive = row.archive.clone();
         let submitted = Rc::new(Cell::new(false));
         let host = OPEN.with(|slot| slot.borrow().clone());
@@ -458,7 +431,7 @@ impl Extractor {
                     failed.failed.set(true);
                     failed.pause.set_visible(false);
                     failed.estimate.set_label("This archive needs a password.");
-                    failed.estimate.add_css_class("au-error");
+                    failed.estimate.add_css_class("error");
                 }
             }
             dialog_ok.close();
@@ -473,7 +446,7 @@ impl Extractor {
                     row_close
                         .estimate
                         .set_label("This archive needs a password.");
-                    row_close.estimate.add_css_class("au-error");
+                    row_close.estimate.add_css_class("error");
                 }
             }
             glib::Propagation::Proceed
@@ -492,9 +465,10 @@ impl Extractor {
     }
 }
 
-/// The archive's icon from the active theme. Gio supplies the name chain
-/// (`application-zip`, then `package-x-generic`, and so on). `text-x-generic`
-/// is appended so a theme with none of those names still has a last resort.
+/// The archive's icon from the active theme. The chain asks for the MIME
+/// icon of the detected format first (`application-zip`,
+/// `application-x-7z-compressed`, …), then Gio's names for the file, then
+/// `package-x-generic` and `text-x-generic` as the last resorts.
 fn archive_icon(path: &std::path::Path) -> gtk::Image {
     let gicon = icon_for_archive(path);
     if std::env::var_os("ELAVO_ARCHIVE_UTILITY_SCREENSHOT").is_some() {
@@ -508,6 +482,36 @@ fn archive_icon(path: &std::path::Path) -> gtk::Image {
 }
 
 fn icon_for_archive(path: &std::path::Path) -> gio::Icon {
+    let gio_icon = gio_icon_for(path);
+    let mut names: Vec<String> = elavo_archive_utility_core::detect(path)
+        .map(|format| {
+            format
+                .icon_names()
+                .iter()
+                .map(|name| name.to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Some(themed) = gio_icon.downcast_ref::<gio::ThemedIcon>() {
+        for name in themed.names() {
+            names.push(name.to_string());
+        }
+    }
+    for last in [
+        "package-x-generic",
+        "package-x-generic-symbolic",
+        "text-x-generic",
+        "text-x-generic-symbolic",
+    ] {
+        names.push(last.to_string());
+    }
+    let mut seen = std::collections::HashSet::new();
+    names.retain(|name| seen.insert(name.clone()));
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    gio::ThemedIcon::from_names(&refs).upcast()
+}
+
+fn gio_icon_for(path: &std::path::Path) -> gio::Icon {
     let file = gio::File::for_path(path);
     if let Ok(info) = file.query_info(
         "standard::icon,standard::content-type",
@@ -518,28 +522,14 @@ fn icon_for_archive(path: &std::path::Path) -> gio::Icon {
         // away the type the filename already states.
         if info.content_type().as_deref() != Some("application/x-zerosize") {
             if let Some(icon) = info.icon() {
-                return with_text_fallback(icon);
+                return icon;
             }
         }
     }
     // A non-empty dummy byte keeps Gio from treating a missing file as
     // zerosize, so the extension (for example `.exe`) still decides.
     let (content_type, _) = gio::content_type_guess(Some(path), &[0]);
-    with_text_fallback(gio::content_type_get_icon(content_type.as_str()))
-}
-
-fn with_text_fallback(icon: gio::Icon) -> gio::Icon {
-    if let Some(themed) = icon.downcast_ref::<gio::ThemedIcon>() {
-        let names = themed.names();
-        let has = |needle: &str| names.iter().any(|name| name.as_str() == needle);
-        if !has("text-x-generic") {
-            themed.append_name("text-x-generic");
-        }
-        if !has("text-x-generic-symbolic") {
-            themed.append_name("text-x-generic-symbolic");
-        }
-    }
-    icon
+    gio::content_type_get_icon(content_type.as_str())
 }
 
 fn report_icon(path: &std::path::Path, icon: &gio::Icon) {
@@ -585,19 +575,11 @@ fn report_icon(path: &std::path::Path, icon: &gio::Icon) {
     );
 }
 
-fn flatten_without_compositor(widget: &impl IsA<gtk::Widget>) {
-    widget.connect_realize(|widget| {
-        if !widget.display().is_composited() {
-            widget.add_css_class("au-flat");
-        }
-    });
-}
-
 fn round_button(icon: &str, tip: &str) -> gtk::Button {
     let button = gtk::Button::builder()
         .icon_name(icon)
         .tooltip_text(tip)
-        .css_classes(["au-round"])
+        .css_classes(["au-round", "circular", "flat"])
         .valign(gtk::Align::Center)
         .build();
     if let Some(image) = button

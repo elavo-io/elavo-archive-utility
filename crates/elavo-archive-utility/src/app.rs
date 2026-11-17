@@ -1,4 +1,6 @@
-//! One Archive Utility window per session, with the system light and dark setting.
+//! One Archive Utility window per session. Colors, window frames, and the
+//! accent come from the GTK theme; the app follows the system light and dark
+//! setting the way Elavo Files does.
 
 use std::cell::Cell;
 use std::path::PathBuf;
@@ -24,7 +26,6 @@ pub fn run() -> glib::ExitCode {
 
     app.connect_startup(|_| {
         load_css();
-        crate::accent::install();
         install_icon();
         follow_color_scheme();
         gtk::Window::set_default_icon_name(APP_ID);
@@ -95,16 +96,21 @@ pub fn run() -> glib::ExitCode {
     app.run()
 }
 
+/// Opening files is a request to extract them. Every file goes to the
+/// extraction window: recognised archives with their own tool, anything
+/// else through 7-Zip, which says on the file's row when it cannot open it.
+/// Folders cannot be extracted, so folders in the same open are compressed
+/// in the main window, as before.
 fn show(app: &gtk::Application, paths: Vec<PathBuf>, autostart: bool) {
-    let archives: Vec<PathBuf> = paths
-        .iter()
-        .filter(|path| elavo_archive_utility_core::detect(path).is_some())
-        .cloned()
-        .collect();
-    if !archives.is_empty() && archives.len() == paths.len() {
-        crate::extract::open(app, archives);
-        return;
+    let (folders, files): (Vec<PathBuf>, Vec<PathBuf>) =
+        paths.into_iter().partition(|path| path.is_dir());
+    if !files.is_empty() {
+        crate::extract::open(app, files);
+        if folders.is_empty() {
+            return;
+        }
     }
+    let paths = folders;
     let compact = OPEN_COMPACT.with(|cell| cell.get());
     let existing = WINDOW.with(|cell| cell.take());
     let window = if let Some(window) = existing {
@@ -182,13 +188,9 @@ fn install_icon() {
 }
 
 /// Follow the same color-scheme key GNOME and Elavo write, without depending
-/// on either desktop being installed.
+/// on either desktop being installed. The button layout is the system's
+/// (gtk-decoration-layout), so it is not set here.
 fn follow_color_scheme() {
-    if let Some(gtk_settings) = gtk::Settings::default() {
-        gtk_settings.set_property("gtk-application-prefer-dark-theme", true);
-        // Elavo keeps the window buttons on the left.
-        gtk_settings.set_gtk_decoration_layout(Some("close,minimize,maximize:"));
-    }
     let Some(source) = gio::SettingsSchemaSource::default() else {
         return;
     };
@@ -199,10 +201,10 @@ fn follow_color_scheme() {
         return;
     }
     let iface = gio::Settings::new("org.gnome.desktop.interface");
-    let apply = |_iface: &gio::Settings| {
+    let apply = |iface: &gio::Settings| {
         if let Some(gtk_settings) = gtk::Settings::default() {
-            gtk_settings.set_property("gtk-application-prefer-dark-theme", true);
-            gtk_settings.set_gtk_decoration_layout(Some("close,minimize,maximize:"));
+            let dark = iface.string("color-scheme") == "prefer-dark";
+            gtk_settings.set_gtk_application_prefer_dark_theme(dark);
         }
     };
     apply(&iface);

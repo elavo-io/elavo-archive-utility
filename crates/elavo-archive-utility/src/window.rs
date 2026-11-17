@@ -27,6 +27,9 @@ enum Zone {
     Compress,
 }
 
+/// A window action's body.
+type Handler = Box<dyn Fn(&Rc<Window>)>;
+
 enum JobEvent {
     Progress(Progress),
     Done(elavo_archive_utility_core::Result<Outcome>),
@@ -47,7 +50,6 @@ pub struct Window {
     level: gtk::Scale,
     split: gtk::Entry,
     split_menu: gtk::MenuButton,
-    split_popover: gtk::Popover,
     password: gtk::Entry,
     aes: gtk::CheckButton,
     forks: gtk::CheckButton,
@@ -72,20 +74,19 @@ impl Window {
         let window = gtk::ApplicationWindow::builder()
             .application(app)
             .title("Archive Utility")
-            .default_width(WIDTH + 36)
-            .default_height(HEIGHT + 36)
+            .default_width(WIDTH)
+            .default_height(HEIGHT)
             .resizable(true)
-            .css_classes(["au"])
+            .css_classes(["background", "au"])
             .build();
-        flatten_without_compositor(&window);
 
-        let header = gtk::Box::builder()
-            .spacing(8)
+        // The theme's title bar, as in System Settings: window buttons from
+        // the system layout, no title text, and the format pill at the end.
+        let header = gtk::HeaderBar::builder()
+            .show_title_buttons(true)
             .css_classes(["au-header"])
             .build();
-        let controls = gtk::WindowControls::new(gtk::PackType::Start);
-        controls.set_valign(gtk::Align::Center);
-        header.append(&controls);
+        header.set_title_widget(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
 
         let badge = gtk::DrawingArea::builder()
             .content_width(26)
@@ -110,7 +111,6 @@ impl Window {
             .position(gtk::PositionType::Bottom)
             .has_arrow(false)
             .build();
-        flatten_without_compositor(&popover);
         let list = format_list(settings.borrow().format.pill());
         popover.set_child(Some(&list));
         let chevron = gtk::Box::builder()
@@ -140,14 +140,8 @@ impl Window {
             .build();
         pill.append(&pill_face);
         pill.append(&menu);
-        let spacer = gtk::Box::builder().hexpand(true).build();
-        header.append(&spacer);
-        header.append(&pill);
-        // Keep the traffic lights in the client frame. A separate title bar
-        // was taller than the buttons and its square fill fought the corners.
-        let titlebar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        titlebar.set_height_request(0);
-        window.set_titlebar(Some(&titlebar));
+        header.pack_end(&pill);
+        window.set_titlebar(Some(&header));
 
         let stack = gtk::Stack::builder()
             .vexpand(true)
@@ -164,7 +158,6 @@ impl Window {
             level,
             split,
             split_menu,
-            split_popover,
             password,
             aes,
             forks,
@@ -180,13 +173,7 @@ impl Window {
         stack.add_named(&running, Some("running"));
         stack.add_named(&done, Some("done"));
         stack.set_visible_child_name("options");
-        let frame = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .css_classes(["au-frame"])
-            .build();
-        frame.append(&header);
-        frame.append(&stack);
-        window.set_child(Some(&frame));
+        window.set_child(Some(&stack));
 
         let this = Rc::new(Self {
             window,
@@ -203,7 +190,6 @@ impl Window {
             level,
             split,
             split_menu,
-            split_popover,
             password,
             aes,
             forks,
@@ -253,6 +239,13 @@ impl Window {
 
     fn wire(self: &Rc<Self>, list: &gtk::ListBox) {
         self.add_actions();
+        let weak = Rc::downgrade(self);
+        self.window.connect_close_request(move |_| {
+            if let Some(window) = weak.upgrade() {
+                window.cancel.borrow().cancel();
+            }
+            glib::Propagation::Proceed
+        });
         attach_window_drag(&self.window, Rc::downgrade(self));
 
         let weak = Rc::downgrade(self);
@@ -324,7 +317,7 @@ impl Window {
 
     fn add_actions(self: &Rc<Self>) {
         let win = &self.window;
-        let add = |name: &str, handler: Box<dyn Fn(&Rc<Self>)>| {
+        let add = |name: &str, handler: Handler| {
             let action = gio::SimpleAction::new(name, None);
             let weak = Rc::downgrade(self);
             action.connect_activate(move |_, _| {
@@ -352,6 +345,7 @@ impl Window {
                 let dialog = gtk::AboutDialog::builder()
                     .transient_for(&window.window)
                     .modal(true)
+                    .destroy_with_parent(true)
                     .program_name("Elavo Archive Utility")
                     .version(env!("CARGO_PKG_VERSION"))
                     .comments("Compress files and extract archives.")
@@ -365,6 +359,15 @@ impl Window {
             }),
         );
         add("open-files", Box::new(|window| window.pick(false)));
+        let preset = gio::SimpleAction::new("split-preset", Some(glib::VariantTy::STRING));
+        let weak = Rc::downgrade(self);
+        preset.connect_activate(move |_, value| {
+            let Some(window) = weak.upgrade() else { return };
+            if let Some(text) = value.and_then(|value| value.str()) {
+                window.split.set_text(text);
+            }
+        });
+        win.add_action(&preset);
         add("open-archive", Box::new(|window| window.pick(true)));
         add("cancel", Box::new(|window| window.cancel.borrow().cancel()));
         add("close", Box::new(|window| window.window.close()));
@@ -486,6 +489,7 @@ impl Window {
         let can_split = format.supports_split();
         self.split.set_sensitive(can_split);
         self.split_menu.set_sensitive(can_split);
+        self.refresh_password(format);
         self.forks.set_active(options.exclude_macos);
         self.verify.set_active(options.verify);
         self.delete_after.set_active(options.delete_after);
@@ -516,8 +520,26 @@ impl Window {
     }
 
     fn set_method_label(&self, format: Format, level: Level) {
-        self.method
-            .set_label(&format!("Method: {}", format.method_text(level)));
+        self.method.set_label(format.method_text(level));
+    }
+
+    /// Only 7Z and ZIP take a password. For the others the field is off and
+    /// says why, so a password is never silently ignored.
+    fn refresh_password(&self, format: Format) {
+        let can = format.supports_password();
+        if !can {
+            self.password.set_text("");
+        }
+        self.password.set_sensitive(can);
+        if can {
+            self.password.set_placeholder_text(Some("Password"));
+            self.password.set_tooltip_text(None);
+        } else {
+            self.password
+                .set_placeholder_text(Some(&format!("{} has no password", format.label())));
+            self.password
+                .set_tooltip_text(Some("Only 7Z and ZIP archives can be encrypted."));
+        }
     }
 
     fn current_options(&self) -> FormatOptions {
@@ -666,39 +688,10 @@ impl Window {
     }
 
     fn ask_password(&self, message: &str) {
-        let dialog = gtk::Window::builder()
-            .transient_for(&self.window)
-            .modal(true)
-            .title("Password")
-            .default_width(280)
-            .css_classes(["au-prefs"])
-            .build();
-        let box_ = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .spacing(10)
-            .margin_top(16)
-            .margin_bottom(16)
-            .margin_start(16)
-            .margin_end(16)
-            .build();
-        let label = gtk::Label::builder()
-            .label(message)
-            .wrap(true)
-            .xalign(0.0)
-            .build();
-        let entry = gtk::PasswordEntry::builder()
-            .show_peek_icon(true)
-            .placeholder_text("Password")
-            .build();
-        let open = gtk::Button::builder()
-            .label("Open")
-            .css_classes(["au-primary", "suggested-action"])
-            .halign(gtk::Align::End)
-            .build();
-        box_.append(&label);
-        box_.append(&entry);
-        box_.append(&open);
-        dialog.set_child(Some(&box_));
+        let prompt = crate::dialog::password(&self.window, message);
+        let dialog = prompt.window.clone();
+        let entry = prompt.entry.clone();
+        let open = prompt.open.clone();
         let owner = self.window.clone();
         let paths = self.last_extract.borrow().clone();
         let dialog_ok = dialog.clone();
@@ -745,6 +738,9 @@ impl Window {
         });
         let rx = Rc::new(RefCell::new(rx));
         let window = self.window.clone();
+        // Keep the process alive until the worker has returned, even if the
+        // window is closed, so a cancelled job removes its temporary files.
+        let mut hold = self.window.application().map(|app| app.hold());
         glib::timeout_add_local(Duration::from_millis(40), move || {
             let mut finished = None;
             loop {
@@ -778,6 +774,7 @@ impl Window {
                     "win.finish",
                     Some(&text.to_variant()),
                 );
+                hold.take();
                 glib::ControlFlow::Break
             } else {
                 glib::ControlFlow::Continue
@@ -847,7 +844,8 @@ impl Window {
         {
             self.select_format(format);
         }
-        if !mode.starts_with("drag") {
+        let takes_password = self.settings.borrow().format.supports_password();
+        if !mode.starts_with("drag") && takes_password {
             self.suppress.set(true);
             self.password.set_text("secret");
             let zip = self.settings.borrow().format.pill() == Format::Zip;
@@ -879,11 +877,35 @@ impl Window {
                 });
             }
             "presets" | "split" => {
-                let pop = self.split_popover.clone();
+                let pop = self.split_menu.clone();
                 // Leave time for a screenshot harness to place the window
                 // before the menu measures its position.
                 glib::timeout_add_local(std::time::Duration::from_millis(1500), move || {
                     pop.popup();
+                    glib::ControlFlow::Break
+                });
+            }
+            "prefs" | "about" => {
+                let window = self.window.clone();
+                let action = if mode == "prefs" {
+                    "win.preferences"
+                } else {
+                    "win.about"
+                };
+                glib::timeout_add_local(std::time::Duration::from_millis(800), move || {
+                    let _ = gtk::prelude::WidgetExt::activate_action(&window, action, None);
+                    glib::ControlFlow::Break
+                });
+            }
+            "password" => {
+                let window = self.window.clone();
+                glib::timeout_add_local(std::time::Duration::from_millis(800), move || {
+                    let prompt = crate::dialog::password(
+                        &window,
+                        "\u{201c}photos.7z\u{201d} is encrypted. Enter its password to open it.",
+                    );
+                    prompt.window.present();
+                    prompt.entry.grab_focus();
                     glib::ControlFlow::Break
                 });
             }
@@ -939,26 +961,22 @@ impl Window {
         self.hint.set_label("");
         match zone {
             Zone::Compress => self.begin_compress(paths),
+            // Files are extracted; one that is not a known archive is
+            // handed to 7-Zip, which reports it if it cannot open it.
+            // Folders cannot be extracted, so a drop of only folders
+            // compresses them instead.
             Zone::Extract => {
-                if paths
-                    .iter()
-                    .any(|path| elavo_archive_utility_core::detect(path).is_none())
-                    && !paths
-                        .iter()
-                        .all(|path| elavo_archive_utility_core::detect(path).is_some())
-                    && paths.len() == 1
-                    && elavo_archive_utility_core::detect(&paths[0]).is_none()
-                {
-                    // Unrecognised files are still offered to 7-Zip.
-                    self.begin_extract(paths);
-                } else if all_archives(&paths)
-                    || paths
-                        .iter()
-                        .any(|path| elavo_archive_utility_core::detect(path).is_some())
-                {
-                    self.begin_extract(paths);
+                let (folders, files): (Vec<PathBuf>, Vec<PathBuf>) =
+                    paths.into_iter().partition(|path| path.is_dir());
+                if files.is_empty() {
+                    self.begin_compress(folders);
                 } else {
-                    self.begin_compress(paths);
+                    self.begin_extract(files);
+                    if !folders.is_empty() {
+                        self.hint.set_label(
+                            "Folders can't be extracted. Drop them on the lower area to compress them.",
+                        );
+                    }
                 }
             }
         }
@@ -1095,7 +1113,7 @@ fn drop_page() -> (gtk::Box, gtk::Box, gtk::Box, gtk::Label) {
         .content_height(110)
         .halign(gtk::Align::Center)
         .build();
-    art.set_draw_func(|_, cr, w, h| draw_stack(cr, w as f64, h as f64));
+    art.set_draw_func(|area, cr, w, h| draw_stack(cr, &area.color(), w as f64, h as f64));
     let title = gtk::Label::builder()
         .label("Drop here to extract")
         .css_classes(["au-extract-title"])
@@ -1134,7 +1152,6 @@ fn options_page() -> (
     gtk::Scale,
     gtk::Entry,
     gtk::MenuButton,
-    gtk::Popover,
     gtk::Entry,
     gtk::CheckButton,
     gtk::CheckButton,
@@ -1156,7 +1173,7 @@ fn options_page() -> (
     let method = gtk::Label::builder()
         .xalign(0.0)
         .css_classes(["au-method"])
-        .label("Method: Normal")
+        .label(Level::Normal.description())
         .build();
     let level = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 5.0, 1.0);
     level.set_draw_value(false);
@@ -1172,90 +1189,44 @@ fn options_page() -> (
             scale.set_value(snapped);
         }
     });
-    // GTK clamps a mark's label into the widget, which pulls Store and Slow
-    // off their ticks. These labels are positioned on the tick centers instead.
-    // An overlay's size comes from the spacer, so the labels can sit on the
-    // tick centers (including a small negative margin) without widening the window.
-    let ticks = gtk::Overlay::new();
-    ticks.set_hexpand(true);
-    ticks.add_css_class("au-ticks");
-    ticks.set_overflow(gtk::Overflow::Visible);
-    let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    spacer.set_hexpand(true);
-    spacer.set_height_request(18);
-    ticks.set_child(Some(&spacer));
-    let tick_labels: Vec<gtk::Label> = ["Store", "Fast", "Normal", "Slow"]
-        .iter()
-        .map(|name| {
-            let label = gtk::Label::builder()
-                .label(*name)
-                .halign(gtk::Align::Start)
-                .valign(gtk::Align::Start)
-                .css_classes(["au-dim"])
-                .build();
-            ticks.add_overlay(&label);
-            label
-        })
-        .collect();
-    let labels_for_layout = tick_labels.clone();
-    let placed = Rc::new(RefCell::new(Vec::<i32>::new()));
-    level.add_tick_callback(move |scale, _| {
-        let centers = mark_centers(scale);
-        if centers.len() == Level::STOPS.len() {
-            let key: Vec<i32> = centers
-                .iter()
-                .map(|center| center.round() as i32)
-                .chain(labels_for_layout.iter().map(label_text_width))
-                .collect();
-            let changed = key != *placed.borrow();
-            if changed && place_tick_labels(&centers, &labels_for_layout) {
-                *placed.borrow_mut() = key;
-            }
-        }
-        glib::ControlFlow::Continue
-    });
+    // The two ends in the same plain words as the line above the slider.
+    let ticks = gtk::Box::builder().css_classes(["au-ticks"]).build();
+    for (level, align) in [
+        (Level::Store, gtk::Align::Start),
+        (Level::Slowest, gtk::Align::End),
+    ] {
+        ticks.append(
+            &gtk::Label::builder()
+                .label(level.description())
+                .halign(align)
+                .hexpand(true)
+                .css_classes(["dim-label", "au-small"])
+                .build(),
+        );
+    }
     let split_row = labeled("Split:");
     let split = gtk::Entry::builder()
         .placeholder_text("Example: 5 MB")
         .hexpand(true)
         .build();
-    let split_popover = gtk::Popover::builder()
-        .css_classes(["au-menu"])
-        .position(gtk::PositionType::Bottom)
-        .has_arrow(false)
-        .build();
-    flatten_without_compositor(&split_popover);
-    let preset_list = gtk::ListBox::new();
-    preset_list.add_css_class("au-split-list");
+    // A plain menu from the theme. A list box in a popover selected and
+    // focused rows as soon as it opened.
+    let presets = gio::Menu::new();
     for preset in SPLIT_PRESETS {
-        preset_list.append(
-            &gtk::Label::builder()
-                .label(preset.label)
-                .xalign(0.0)
-                .build(),
+        let item = gio::MenuItem::new(Some(preset.label), None);
+        item.set_action_and_target_value(
+            Some("win.split-preset"),
+            Some(&preset.label.to_variant()),
         );
+        presets.append_item(&item);
     }
-    let split_for_preset = split.clone();
-    let popover_for_preset = split_popover.clone();
-    preset_list.connect_row_activated(move |_, row| {
-        if let Some(preset) = SPLIT_PRESETS.get(row.index() as usize) {
-            split_for_preset.set_text(preset.label);
-        }
-        popover_for_preset.popdown();
-    });
-    split_popover.set_child(Some(&preset_list));
     let split_menu = gtk::MenuButton::builder()
         .icon_name("pan-down-symbolic")
         .css_classes(["au-split-menu"])
-        .popover(&split_popover)
+        .menu_model(&presets)
         .tooltip_text("Split presets")
-        .always_show_arrow(false)
         .valign(gtk::Align::Center)
         .build();
-    let split_for_width = split.clone();
-    split_popover.connect_show(move |popover| {
-        popover.set_width_request(split_for_width.width().max(220));
-    });
     split_row.append(&split);
     split_row.append(&split_menu);
     let password_row = labeled("Password:");
@@ -1315,7 +1286,6 @@ fn options_page() -> (
         level,
         split,
         split_menu,
-        split_popover,
         password,
         aes,
         forks,
@@ -1323,14 +1293,6 @@ fn options_page() -> (
         delete_after,
         separate,
     )
-}
-
-fn flatten_without_compositor(widget: &impl IsA<gtk::Widget>) {
-    widget.connect_realize(|widget| {
-        if !widget.display().is_composited() {
-            widget.add_css_class("au-flat");
-        }
-    });
 }
 
 fn labeled(text: &str) -> gtk::Box {
@@ -1357,19 +1319,18 @@ fn progress_page() -> (gtk::Box, gtk::Label, gtk::ProgressBar, gtk::Label) {
         .label("Working")
         .build();
     let bar = gtk::ProgressBar::builder()
-        .css_classes(["au-progress"])
         .show_text(false)
         .hexpand(true)
         .build();
     let detail = gtk::Label::builder()
-        .css_classes(["au-dim"])
+        .css_classes(["dim-label"])
         .ellipsize(gtk::pango::EllipsizeMode::Middle)
         .label("Starting…")
         .build();
     let cancel = gtk::Button::builder()
         .label("Cancel")
         .action_name("win.cancel")
-        .css_classes(["au-quiet"])
+        .css_classes(["flat"])
         .halign(gtk::Align::Center)
         .build();
     page.append(&title);
@@ -1391,7 +1352,7 @@ fn done_page() -> (gtk::Box, gtk::Label, gtk::Label, gtk::Button) {
         .label("Finished")
         .build();
     let detail = gtk::Label::builder()
-        .css_classes(["au-dim"])
+        .css_classes(["dim-label"])
         .wrap(true)
         .justify(gtk::Justification::Center)
         .build();
@@ -1401,12 +1362,12 @@ fn done_page() -> (gtk::Box, gtk::Label, gtk::Label, gtk::Button) {
         .build();
     let show = gtk::Button::builder()
         .label("Show")
-        .css_classes(["au-primary"])
+        .css_classes(["suggested-action"])
         .build();
     let back = gtk::Button::builder()
         .label("Done")
         .action_name("win.back")
-        .css_classes(["au-quiet"])
+        .css_classes(["flat"])
         .build();
     row.append(&show);
     row.append(&back);
@@ -1466,99 +1427,6 @@ fn attach_window_drag(window: &gtk::ApplicationWindow, weak: std::rc::Weak<Windo
     window.add_controller(target);
 }
 
-/// Horizontal position of a label so its center sits on an evenly spaced tick.
-/// GTK draws the six marks across the trough, from its left edge to its right
-/// edge, so stop `index` is at `trough_x + trough_width * index / 5`.
-#[cfg(test)]
-fn tick_label_x(trough_x: f64, trough_width: f64, index: f64, label_width: f64) -> f64 {
-    let tick = trough_x + trough_width * index / 5.0;
-    tick - label_width / 2.0
-}
-
-fn label_text_width(label: &gtk::Label) -> i32 {
-    // Widget::measure starts reporting the allocated width once margins are set,
-    // which would slide the labels every frame. The text layout does not.
-    label
-        .create_pango_layout(Some(&label.label()))
-        .pixel_size()
-        .0
-}
-
-fn mark_centers(scale: &gtk::Scale) -> Vec<f64> {
-    let mut child = scale.first_child();
-    while let Some(widget) = child {
-        if widget.css_name() == "marks" {
-            let mut centers = Vec::new();
-            let mut mark = widget.first_child();
-            while let Some(current) = mark {
-                if current.width() > 0 {
-                    let origin = gtk::graphene::Point::new(0.0, 0.0);
-                    if let Some(point) = current.compute_point(scale, &origin) {
-                        centers.push(point.x() as f64 + current.width() as f64 / 2.0);
-                    }
-                }
-                mark = current.next_sibling();
-            }
-            return centers;
-        }
-        child = widget.next_sibling();
-    }
-    Vec::new()
-}
-
-fn place_tick_labels(centers: &[f64], labels: &[gtk::Label]) -> bool {
-    let Some(overlay) = labels.first().and_then(|label| label.parent()) else {
-        return false;
-    };
-    let overlay_width = overlay.width();
-    if overlay_width <= 0 {
-        return false;
-    }
-    // The overlay shares its left edge with the scale, so a mark's x is the
-    // label's x. margin_end keeps the allocated width equal to the text, which
-    // stops the last label being squeezed off its tick.
-    // Store, Fast, Normal, Slow sit on stops 1, 2, 4, and 6. Stops 3 and 5 are dots.
-    const LABELED: [usize; 4] = [0, 1, 3, 5];
-    for (label, index) in labels.iter().zip(LABELED) {
-        let Some(center) = centers.get(index) else {
-            return false;
-        };
-        let natural = label_text_width(label);
-        if natural <= 0 {
-            return false;
-        }
-        let start = (center - natural as f64 / 2.0).round() as i32;
-        label.set_margin_start(start);
-        label.set_margin_end(overlay_width - start - natural);
-    }
-    true
-}
-
-#[cfg(test)]
-mod layout_tests {
-    use super::tick_label_x;
-
-    #[test]
-    fn labels_center_on_six_even_ticks() {
-        let trough_x = 1.0;
-        let trough_width = 300.0;
-        let label = 40.0;
-        let centers: Vec<f64> = (0..6)
-            .map(|index| tick_label_x(trough_x, trough_width, index as f64, label) + label / 2.0)
-            .collect();
-        assert!((centers[0] - trough_x).abs() < 0.01);
-        assert!((centers[5] - (trough_x + trough_width)).abs() < 0.01);
-        let step = centers[1] - centers[0];
-        for index in 1..5 {
-            assert!((centers[index + 1] - centers[index] - step).abs() < 0.01);
-        }
-        assert!((step - trough_width / 5.0).abs() < 0.01);
-        // Store, Fast, Normal, Slow are stops 1, 2, 4, and 6.
-        assert!((centers[1] - (trough_x + step)).abs() < 0.01);
-        assert!((centers[3] - (trough_x + step * 3.0)).abs() < 0.01);
-    }
-}
-
 fn draw_badge(cr: &gtk::cairo::Context, format: Format, width: f64, height: f64) {
     let (r, g, b) = format.badge_rgb();
     let radius = 5.0;
@@ -1574,7 +1442,7 @@ fn draw_badge(cr: &gtk::cairo::Context, format: Format, width: f64, height: f64)
     cr.close_path();
     let _ = cr.fill();
     cr.set_source_rgb(1.0, 1.0, 1.0);
-    let _ = cr.select_font_face(
+    cr.select_font_face(
         "Roboto",
         gtk::cairo::FontSlant::Normal,
         gtk::cairo::FontWeight::Bold,
@@ -1595,17 +1463,15 @@ fn draw_badge(cr: &gtk::cairo::Context, format: Format, width: f64, height: f64)
     }
 }
 
-fn draw_stack(cr: &gtk::cairo::Context, width: f64, height: f64) {
-    let sheets = [
-        (18.0, 8.0, 0.20, 0.20, 0.22),
-        (10.0, 22.0, 0.28, 0.28, 0.31),
-        (2.0, 36.0, 0.40, 0.42, 0.46),
-    ];
-    for (x, y, r, g, b) in sheets {
-        cr.set_source_rgb(r, g, b);
+/// Three sheets in the theme's text color at rising strength, so the art
+/// follows light and dark.
+fn draw_stack(cr: &gtk::cairo::Context, fg: &gdk::RGBA, width: f64, height: f64) {
+    let (r, g, b) = (fg.red() as f64, fg.green() as f64, fg.blue() as f64);
+    for (x, y, alpha) in [(18.0, 8.0, 0.08), (10.0, 22.0, 0.14), (2.0, 36.0, 0.22)] {
+        cr.set_source_rgba(r, g, b, alpha);
         rounded(cr, x, y, width - 36.0, height - 48.0, 8.0);
         let _ = cr.fill();
-        cr.set_source_rgba(1.0, 1.0, 1.0, 0.08);
+        cr.set_source_rgba(r, g, b, 0.10);
         cr.set_line_width(1.0);
         rounded(cr, x, y, width - 36.0, height - 48.0, 8.0);
         let _ = cr.stroke();
