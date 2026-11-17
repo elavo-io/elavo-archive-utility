@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/elavo-archive-utility-core",
+    "crates/elavo-archive-utility",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/elavo-io/elavo-archive-utility"
+authors = ["Kevin Doyle"]
+
+[workspace.dependencies]
+libc = "0.2"
+
+[profile.release]
+lto = "thin"
+strip = true

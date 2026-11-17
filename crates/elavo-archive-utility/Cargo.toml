@@ -1,0 +1,20 @@
+[package]
+name = "elavo-archive-utility"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Compress files and extract archives"
+
+[[bin]]
+name = "elavo-archive-utility"
+path = "src/main.rs"
+
+[dependencies]
+elavo-archive-utility-core = { path = "../elavo-archive-utility-core" }
+gtk = { package = "gtk4", version = "0.9", features = ["v4_14"] }
+glib = "0.20"
+
+[build-dependencies]
+glib-build-tools = "0.20"

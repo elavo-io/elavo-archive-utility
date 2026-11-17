@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/io/elavo/ArchiveUtility">
+    <file compressed="true">resources/style.css</file>
+    <file>icons/au-lock.png</file>
+    <file compressed="true" alias="elavo-archive-utility.svg">icons/hicolor/scalable/apps/io.elavo.ArchiveUtility.svg</file>
+    <file compressed="true" alias="elavo-archive-utility.png">icons/hicolor/256x256/apps/io.elavo.ArchiveUtility.png</file>
+    <file compressed="true" alias="elavo-archive-utility-symbolic.svg">icons/hicolor/symbolic/apps/io.elavo.ArchiveUtility-symbolic.svg</file>
+  </gresource>
+  <gresource prefix="/io/elavo/ArchiveUtility/icons">
+    <file alias="hicolor/symbolic/actions/au-lock-symbolic.svg">icons/hicolor/symbolic/actions/au-lock-symbolic.svg</file>
+  </gresource>
+</gresources>

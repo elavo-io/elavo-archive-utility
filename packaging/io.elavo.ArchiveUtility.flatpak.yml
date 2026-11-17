@@ -1,0 +1,81 @@
+# Archive Utility. Builds the application, 7-Zip, libunarr, and cabextract.
+# `unar` is a GNUstep program and is not bundled; RAR without a password
+# uses libunarr. innoextract needs Boost and stays an optional host tool.
+# From the repository root:
+#   flatpak-builder --user --install --force-clean build-dir packaging/io.elavo.ArchiveUtility.flatpak.yml
+app-id: io.elavo.ArchiveUtility
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: elavo-archive-utility
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --filesystem=home
+  - --filesystem=/run/media
+  # Host icon themes need no extra filesystem permission. Flatpak mounts
+  # /usr/share/icons at /run/host/share/icons and ~/.local/share/icons at
+  # /run/host/user-share/icons. Archive Utility searches those first. ~/.icons is
+  # covered by --filesystem=home. The icon theme name comes from the portal.
+  - --talk-name=org.freedesktop.FileManager1
+  - --talk-name=org.freedesktop.portal.Desktop
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/elavo-archive-utility/cargo
+modules:
+  - name: 7zip
+    buildsystem: simple
+    build-commands:
+      - make -C CPP/7zip/Bundles/Alone2 -f makefile.gcc -j${FLATPAK_BUILDER_N_JOBS}
+      - install -Dm755 $(find CPP/7zip/Bundles/Alone2 -type f -name 7zz | head -n1) /app/bin/7zz
+      - ln -sf 7zz /app/bin/7z
+    sources:
+      - type: archive
+        url: https://www.7-zip.org/a/7z2501-src.tar.xz
+        sha256: ed087f83ee789c1ea5f39c464c55a5c9d4008deb0efe900814f2df262b82c36e
+
+  - name: unarr
+    buildsystem: cmake
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+    sources:
+      - type: archive
+        url: https://github.com/selmf/unarr/archive/refs/tags/v1.1.1.tar.gz
+        sha256: fa0ebf6d9b420d34171b1b6100949edce708c7933e7cfd2cedd03eae998d1c53
+
+  - name: cabextract
+    buildsystem: autotools
+    sources:
+      - type: archive
+        url: https://www.cabextract.org.uk/cabextract-1.11.tar.gz
+        sha256: b5546db1155e4c718ff3d4b278573604f30dd64c3c5bfd4657cd089b823a3ac6
+
+  - name: elavo-archive-utility
+    buildsystem: simple
+    build-options:
+      build-args:
+        - --share=network
+    build-commands:
+      - cargo build --release --locked
+      - install -Dm755 target/release/elavo-archive-utility /app/bin/elavo-archive-utility
+      - install -Dm644 data/io.elavo.ArchiveUtility.desktop /app/share/applications/io.elavo.ArchiveUtility.desktop
+      - install -Dm644 data/io.elavo.ArchiveUtility.metainfo.xml /app/share/metainfo/io.elavo.ArchiveUtility.metainfo.xml
+      - install -Dm644 data/icons/hicolor/scalable/apps/io.elavo.ArchiveUtility.svg /app/share/icons/hicolor/scalable/apps/io.elavo.ArchiveUtility.svg
+      - install -Dm644 data/icons/hicolor/symbolic/apps/io.elavo.ArchiveUtility-symbolic.svg /app/share/icons/hicolor/symbolic/apps/io.elavo.ArchiveUtility-symbolic.svg
+      - install -Dm644 data/icons/hicolor/symbolic/actions/au-lock-symbolic.svg /app/share/icons/hicolor/symbolic/actions/au-lock-symbolic.svg
+      - install -Dm644 data/icons/hicolor/128x128/apps/io.elavo.ArchiveUtility.png /app/share/icons/hicolor/128x128/apps/io.elavo.ArchiveUtility.png
+      - install -Dm644 data/icons/hicolor/256x256/apps/io.elavo.ArchiveUtility.png /app/share/icons/hicolor/256x256/apps/io.elavo.ArchiveUtility.png
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - target
+          - .git
+          - build-dir
+          - .flatpak-builder

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Archive Utility
+GenericName=Archive Manager
+Comment=Compress files and extract archives
+Exec=elavo-archive-utility %F
+Icon=io.elavo.ArchiveUtility
+Terminal=false
+Type=Application
+Categories=Utility;Archiving;Compression;GTK;
+MimeType=application/zip;application/x-7z-compressed;application/x-tar;application/gzip;application/x-gzip;application/x-bzip2;application/x-bzip;application/x-xz;application/zstd;application/x-zstd;application/vnd.rar;application/x-rar;application/x-rar-compressed;application/x-iso9660-image;application/x-cd-image;application/x-compressed-tar;application/x-bzip-compressed-tar;application/x-xz-compressed-tar;application/x-zstd-compressed-tar;application/x-lzip;application/x-lz4;application/x-brotli;application/x-lrzip;application/x-snappy-framed;application/vnd.ms-cab-compressed;application/x-msi;application/x-ms-wim;application/x-apple-diskimage;application/vnd.debian.binary-package;application/x-rpm;application/x-cpio;application/x-archive;application/x-xar;application/vnd.ms-htmlhelp;application/x-lzh-compressed;application/x-arj;application/vnd.android.package-archive;application/java-archive;application/x-itunes-ipa;application/vnd.efi.iso;application/x-raw-disk-image;application/x-qemu-disk;application/x-virtualbox-vmdk;application/x-vhd;application/x-vhdx;application/vnd.squashfs;application/vnd.microsoft.portable-executable;application/x-dosexec;inode/directory;
+StartupNotify=true
+StartupWMClass=io.elavo.ArchiveUtility
+Keywords=archive;compress;extract;zip;7z;tar;

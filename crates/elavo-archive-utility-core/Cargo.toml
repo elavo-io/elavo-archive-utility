@@ -1,0 +1,22 @@
+[package]
+name = "elavo-archive-utility-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Compress and extract archives for Archive Utility"
+authors.workspace = true
+
+[dependencies]
+bzip2 = "0.5"
+flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
+libc.workspace = true
+snap = "1"
+tar = "0.4"
+tempfile = "3"
+xz2 = "0.1"
+zstd = "0.13"
+
+[dev-dependencies]
+tar = "0.4"
+tempfile = "3"

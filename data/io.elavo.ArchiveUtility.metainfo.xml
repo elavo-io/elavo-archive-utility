@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.elavo.ArchiveUtility</id>
+  <name>Elavo Archive Utility</name>
+  <summary>Compress files and extract archives</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.elavo">
+    <name>Kevin Doyle</name>
+  </developer>
+  <description>
+    <p>
+      Archive Utility compresses files and folders, and extracts archives.
+      Drop an archive to unpack it, or drop other files to pack them.
+      It creates 7z, ZIP, tar, and several single-file compressors, and
+      opens many more formats through free tools it finds at runtime.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.elavo.ArchiveUtility.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-15"/>
+  </releases>
+  <url type="homepage">https://github.com/elavo-io/elavo-archive-utility</url>
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+</component>
