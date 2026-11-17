@@ -72,6 +72,14 @@ pub fn compress(
     if req.inputs.is_empty() {
         return Err(Error::Empty);
     }
+    // The tools run in their own working folder, so a relative path would
+    // point inside it.
+    let absolute = CompressRequest {
+        inputs: req.inputs.iter().map(|path| absolute(path)).collect(),
+        output: absolute(&req.output),
+        ..req.clone()
+    };
+    let req = &absolute;
     for input in &req.inputs {
         if fs::symlink_metadata(input).is_err() {
             return Err(Error::Failed(format!("Can't find {}.", input.display())));
@@ -92,12 +100,17 @@ fn compress_separate(
     cancel: &Cancel,
     mut progress: impl FnMut(Progress),
 ) -> Result<Outcome> {
-    let parent = req
-        .output
-        .parent()
-        .map(Path::to_path_buf)
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or_else(|| PathBuf::from("."));
+    // The output names a folder to write into when it is one; otherwise the
+    // archives go beside the named path.
+    let parent = if req.output.is_dir() {
+        req.output.clone()
+    } else {
+        req.output
+            .parent()
+            .map(Path::to_path_buf)
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| PathBuf::from("."))
+    };
     let mut last = None;
     let mut files = 0u64;
     for input in &req.inputs {
@@ -333,15 +346,57 @@ pub fn extract(
             req.archive.display()
         )));
     }
-    let format = format::detect(&req.archive);
-    // An unrecognised file is handed to 7-Zip before Archive Utility gives up.
-    let format = match format {
-        Some(format) => format,
-        None => {
-            return extract_unknown(req, cancel, progress);
-        }
+    let absolute = ExtractRequest {
+        archive: absolute(&req.archive),
+        destination: absolute(&req.destination),
+        ..req.clone()
     };
-    extract_known(req, format, cancel, progress)
+    let req = &absolute;
+    // An unrecognised file is handed to 7-Zip before Archive Utility gives up.
+    match format::detect(&req.archive) {
+        Some(format) => extract_known(req, format, cancel, progress),
+        None => extract_unknown(req, cancel, progress),
+    }
+}
+
+fn absolute(path: &Path) -> PathBuf {
+    if path.as_os_str().is_empty() {
+        return path.to_path_buf();
+    }
+    std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// A folder made for this extraction. If the extraction fails or is
+/// cancelled, it is removed again so no empty or half-filled folder is left.
+struct NewDir {
+    path: PathBuf,
+    made: bool,
+    keep: bool,
+}
+
+impl NewDir {
+    fn create(path: PathBuf, destination: &Path) -> Result<Self> {
+        let made = path != destination && fs::symlink_metadata(&path).is_err();
+        fs::create_dir_all(&path)?;
+        Ok(Self {
+            path,
+            made,
+            keep: false,
+        })
+    }
+
+    fn keep(mut self) -> PathBuf {
+        self.keep = true;
+        self.path.clone()
+    }
+}
+
+impl Drop for NewDir {
+    fn drop(&mut self) {
+        if self.made && !self.keep {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
 }
 
 fn extract_unknown(
@@ -366,19 +421,23 @@ fn extract_unknown(
         NewFolder::Never => req.destination.clone(),
         NewFolder::Always | NewFolder::WhenSeveral => req.destination.join(stem),
     };
-    fs::create_dir_all(&folder)?;
+    let folder = NewDir::create(folder, &req.destination)?;
     let password = req.password.as_deref().filter(|p| !p.is_empty());
     let files = seven::extract(
         &req.archive,
-        &folder,
+        &folder.path,
         Format::SevenZ,
         password,
         req.conflict,
         cancel,
         &mut progress,
-    )?;
+    )
+    .map_err(|err| match err {
+        Error::Failed(_) => Error::Failed("Archive Utility can't open this kind of file.".into()),
+        other => other,
+    })?;
     Ok(Outcome {
-        path: folder,
+        path: folder.keep(),
         files,
         warnings: Vec::new(),
     })
@@ -414,11 +473,11 @@ fn extract_known(
             Err(_) => req.destination.join(&stem),
         },
     };
-    fs::create_dir_all(&folder)?;
+    let folder = NewDir::create(folder, &req.destination)?;
 
-    let files = dispatch_extract(req, format, &folder, password, cancel, &mut progress)?;
+    let files = dispatch_extract(req, format, &folder.path, password, cancel, &mut progress)?;
     Ok(Outcome {
-        path: folder,
+        path: folder.keep(),
         files,
         warnings: Vec::new(),
     })
@@ -506,6 +565,7 @@ fn dispatch_extract(
         if let Some(program) = crate::tools::tools().dpkg_deb.clone() {
             return extract_deb(&program, &req.archive, folder, req.conflict, cancel);
         }
+        return extract_deb_parts(req, folder, cancel, progress);
     }
     if format == Format::Exe {
         return foreign::extract_exe(
@@ -568,8 +628,9 @@ fn extract_deb(
     let ran = crate::process::run(
         crate::process::Spec {
             program: program.to_path_buf(),
+            // -R: the files, plus the control files in DEBIAN/.
             args: vec![
-                "-x".into(),
+                "-R".into(),
                 archive.display().to_string(),
                 work.path().display().to_string(),
             ],
@@ -585,6 +646,53 @@ fn extract_deb(
         return Err(Error::Failed(crate::process::summarize(&ran.text)));
     }
     crate::transplant::transplant(work.path(), folder, conflict, cancel)
+}
+
+/// Without dpkg-deb, unpack the outer ar archive and then its data and
+/// control tarballs, the way `dpkg-deb -R` lays them out: the package's
+/// files at the top and the control files in DEBIAN/.
+fn extract_deb_parts(
+    req: &ExtractRequest,
+    folder: &Path,
+    cancel: &Cancel,
+    progress: &mut impl FnMut(Progress),
+) -> Result<u64> {
+    let work = tempfile::tempdir().map_err(Error::from)?;
+    seven::unpack_ar(&req.archive, work.path(), cancel)?;
+    let mut parts: Vec<PathBuf> = fs::read_dir(work.path())?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .collect();
+    parts.sort();
+    let mut files = 0;
+    let mut unpacked = false;
+    for part in parts {
+        let name = part
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let target = if name.starts_with("data.tar") {
+            folder.to_path_buf()
+        } else if name.starts_with("control.tar") {
+            folder.join("DEBIAN")
+        } else {
+            continue;
+        };
+        let format = format::detect(&part).unwrap_or(Format::Tar);
+        fs::create_dir_all(&target)?;
+        let inner = ExtractRequest {
+            archive: part.clone(),
+            destination: target.clone(),
+            password: None,
+            new_folder: NewFolder::Never,
+            conflict: req.conflict,
+        };
+        files += dispatch_extract(&inner, format, &target, None, cancel, progress)?;
+        unpacked = true;
+    }
+    if !unpacked {
+        return crate::transplant::transplant(work.path(), folder, req.conflict, cancel);
+    }
+    Ok(files)
 }
 
 fn stream_name(archive: &Path) -> String {

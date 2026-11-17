@@ -221,6 +221,59 @@ pub fn extract(
     Ok(files)
 }
 
+/// Unpack an ar archive (a .deb's outer layer) as is. 7-Zip would otherwise
+/// open a .deb straight to its data tarball and drop the control files.
+pub fn unpack_ar(archive: &Path, dest: &Path, cancel: &Cancel) -> Result<()> {
+    let tools = tools::tools();
+    let (program, args) = if let Some(seven) = tools.seven_zip.clone() {
+        (
+            seven,
+            vec![
+                "x".into(),
+                "-y".into(),
+                "-tar".into(),
+                "-bso1".into(),
+                "-bse1".into(),
+                format!("-o{}", dest.display()),
+                "--".into(),
+                archive.display().to_string(),
+            ],
+        )
+    } else if let Some(bsdtar) = tools.bsdtar.clone() {
+        (
+            bsdtar,
+            vec![
+                "-x".into(),
+                "-f".into(),
+                archive.display().to_string(),
+                "-C".into(),
+                dest.display().to_string(),
+            ],
+        )
+    } else {
+        return Err(Error::ToolMissing {
+            tool: "7z",
+            purpose: "open this package".into(),
+        });
+    };
+    let ran = process::run(
+        Spec {
+            program,
+            args,
+            current_dir: Some(dest.to_path_buf()),
+            writable: Some(dest.to_path_buf()),
+            stdin: None,
+            stdout_path: None,
+        },
+        cancel,
+        |_| {},
+    )?;
+    if ran.code != Some(0) {
+        return Err(Error::Failed(process::summarize(&ran.text)));
+    }
+    Ok(())
+}
+
 pub fn list(archive: &Path, password: Option<&str>, cancel: &Cancel) -> Result<Vec<String>> {
     let tools = tools::tools();
     let password = blank_as_none(password);

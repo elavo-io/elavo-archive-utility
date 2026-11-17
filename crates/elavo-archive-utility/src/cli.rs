@@ -65,7 +65,8 @@ Compress options:
   --exclude-macos     Skip .DS_Store, AppleDouble, and __MACOSX
   --verify            Read the archive back after writing it
   --delete-after      Delete the originals after a successful archive
-  --separate          Write one archive per item
+  --separate          Write one archive per item. --output then names
+                      the folder to write them into
 
 Extract options:
   --output DIR        Folder to extract into
@@ -192,6 +193,12 @@ fn batch_compress(args: &[String]) -> i32 {
     if files.is_empty() {
         eprintln!("Name the files to compress");
         return 2;
+    }
+    if separate && files.len() > 1 {
+        if let Err(err) = std::fs::create_dir_all(&output) {
+            eprintln!("Can't create {}: {err}", output.display());
+            return 1;
+        }
     }
     let req = CompressRequest {
         inputs: files,
