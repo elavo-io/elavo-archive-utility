@@ -244,14 +244,13 @@ pub fn toplevel_count(paths: impl IntoIterator<Item = impl AsRef<str>>) -> usize
     let mut names = HashSet::new();
     for path in paths {
         let path = path.as_ref().replace('\\', "/");
-        let path = path.trim_matches('/');
-        if path.is_empty() {
-            continue;
-        }
-        if let Some(first) = path.split('/').next() {
-            if first != "." && first != ".." && !first.is_empty() {
-                names.insert(first.to_string());
-            }
+        // `tar -C dir .` stores every member under "./", so the first real
+        // component is the top-level name.
+        let first = path
+            .split('/')
+            .find(|part| !part.is_empty() && *part != "." && *part != "..");
+        if let Some(first) = first {
+            names.insert(first.to_string());
         }
     }
     names.len()
@@ -260,6 +259,14 @@ pub fn toplevel_count(paths: impl IntoIterator<Item = impl AsRef<str>>) -> usize
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn toplevel_count_skips_dot_prefixes() {
+        assert_eq!(toplevel_count(["./", "./a.txt", "./b.txt"]), 2);
+        assert_eq!(toplevel_count(["./dir/", "./dir/a.txt"]), 1);
+        assert_eq!(toplevel_count(["dir/a", "dir/b"]), 1);
+        assert_eq!(toplevel_count([".", "./"]), 0);
+    }
 
     #[test]
     fn stems_drop_compound_suffixes() {
