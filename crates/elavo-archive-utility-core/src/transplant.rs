@@ -194,16 +194,24 @@ pub fn write_new(input: &mut impl Read, dest: &Path, mode: u32, cancel: &Cancel)
         .open(dest)?;
     let mut buf = [0u8; 64 * 1024];
     let mut total = 0u64;
-    loop {
-        cancel.check().map_err(|_| cancelled_io())?;
-        let n = input.read(&mut buf)?;
-        if n == 0 {
-            break;
+    let copied = (|| -> Result<u64> {
+        loop {
+            cancel.check().map_err(|_| cancelled_io())?;
+            let n = input.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            output.write_all(&buf[..n])?;
+            total += n as u64;
         }
-        output.write_all(&buf[..n])?;
-        total += n as u64;
+        Ok(total)
+    })();
+    if copied.is_err() {
+        // A cancelled or failed copy leaves no half-written file behind.
+        drop(output);
+        let _ = fs::remove_file(dest);
     }
-    Ok(total)
+    copied
 }
 
 pub fn set_mtime(path: &Path, secs: u64) {

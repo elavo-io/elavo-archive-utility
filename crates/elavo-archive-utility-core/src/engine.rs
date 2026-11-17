@@ -460,6 +460,8 @@ fn extract_known(
     let folder = match req.new_folder {
         NewFolder::Never => req.destination.clone(),
         NewFolder::Always => req.destination.join(&stem),
+        // A package always unpacks to its files plus DEBIAN/.
+        NewFolder::WhenSeveral if format == Format::Deb => req.destination.join(&stem),
         NewFolder::WhenSeveral => match member_names(&req.archive, format, password, cancel) {
             Ok(names) => {
                 if names::toplevel_count(names) > 1 {

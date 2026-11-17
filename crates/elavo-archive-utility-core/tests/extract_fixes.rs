@@ -187,7 +187,7 @@ fn a_deb_unpacks_its_files_and_control_files() {
     let dest = dir.path().join("out");
     fs::create_dir_all(&dest).unwrap();
     let outcome = extract(
-        &request(&archive, &dest, NewFolder::Always),
+        &request(&archive, &dest, NewFolder::WhenSeveral),
         &Cancel::new(),
         |_| {},
     )
@@ -228,4 +228,49 @@ fn separate_archives_go_into_a_named_folder() {
     assert!(folder.join("one.zip").is_file());
     assert!(folder.join("two.zip").is_file());
     assert!(!dir.path().join("one.zip").exists());
+}
+
+#[test]
+fn a_cancelled_tar_extraction_removes_what_it_wrote() {
+    if !has("tar") {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("src");
+    fs::create_dir_all(source.join("pkg")).unwrap();
+    fs::write(source.join("loose.txt"), vec![b'x'; 300_000]).unwrap();
+    fs::write(source.join("pkg/a.txt"), vec![b'a'; 300_000]).unwrap();
+    fs::write(source.join("pkg/b.txt"), vec![b'b'; 300_000]).unwrap();
+    let archive = dir.path().join("mixed.tar");
+    assert!(Command::new("tar")
+        .args([
+            "-C",
+            source.to_str().unwrap(),
+            "-cf",
+            archive.to_str().unwrap(),
+            "loose.txt",
+            "pkg",
+        ])
+        .status()
+        .unwrap()
+        .success());
+    let dest = dir.path().join("out");
+    fs::create_dir_all(&dest).unwrap();
+    fs::write(dest.join("keep.txt"), b"keep\n").unwrap();
+    let cancel = Cancel::new();
+    let mut seen = 0;
+    let result = extract(&request(&archive, &dest, NewFolder::Never), &cancel, |_| {
+        seen += 1;
+        // Let the first member land, then cancel inside the folder.
+        if seen == 3 {
+            cancel.cancel();
+        }
+    });
+    assert!(result.is_err());
+    let mut left: Vec<_> = fs::read_dir(&dest)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    left.sort();
+    assert_eq!(left, ["keep.txt"]);
 }

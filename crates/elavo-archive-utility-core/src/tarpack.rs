@@ -142,15 +142,56 @@ pub fn list_tar(archive: &Path, format: Format, cancel: &Cancel) -> Result<Vec<S
     Ok(names)
 }
 
+/// Tar members are written straight into `dest`. If the extraction fails or
+/// is cancelled, the files it wrote and the top-level folders it created are
+/// removed again, so nothing half-extracted is left beside the archive.
+/// Entries that were already there, or that something else creates
+/// meanwhile, are left alone.
 pub fn extract_tar(
     archive: &Path,
     format: Format,
     dest: &Path,
     conflict: Conflict,
     cancel: &Cancel,
-    mut progress: impl FnMut(Progress),
+    progress: impl FnMut(Progress),
 ) -> Result<u64> {
     fs::create_dir_all(dest)?;
+    let mut created = Vec::new();
+    let result = extract_tar_into(
+        archive,
+        format,
+        dest,
+        conflict,
+        cancel,
+        progress,
+        &mut created,
+    );
+    if result.is_err() {
+        for path in created.iter().rev() {
+            let is_dir = fs::symlink_metadata(path)
+                .map(|meta| meta.is_dir() && !meta.file_type().is_symlink())
+                .unwrap_or(false);
+            let _ = if is_dir {
+                fs::remove_dir_all(path)
+            } else {
+                fs::remove_file(path)
+            };
+        }
+    }
+    result
+}
+
+// The arguments are extract_tar's, plus the list of files written so far.
+#[allow(clippy::too_many_arguments)]
+fn extract_tar_into(
+    archive: &Path,
+    format: Format,
+    dest: &Path,
+    conflict: Conflict,
+    cancel: &Cancel,
+    mut progress: impl FnMut(Progress),
+    created: &mut Vec<PathBuf>,
+) -> Result<u64> {
     let file = File::open(archive)?;
     let total = file.metadata().map(|m| m.len()).unwrap_or(1).max(1);
     let done = Arc::new(AtomicU64::new(0));
@@ -163,6 +204,7 @@ pub fn extract_tar(
     let decoder = open_decoder(format, counted)?;
     let mut tar = tar::Archive::new(decoder);
     let mut files = 0u64;
+    let mut seen_tops = std::collections::HashSet::new();
     for entry in tar.entries()? {
         cancel.check()?;
         let mut entry = entry?;
@@ -170,6 +212,22 @@ pub fn extract_tar(
         let rel = path.as_ref();
         if !is_safe_rel(rel) {
             return Err(Error::UnsafePath(rel.display().to_string()));
+        }
+        // A top-level folder this extraction creates is removed whole if it
+        // fails.
+        let mut parts = rel
+            .components()
+            .filter(|part| matches!(part, std::path::Component::Normal(_)));
+        if let (Some(top), Some(_)) = (parts.next(), parts.next()) {
+            let top = dest.join(top);
+            if seen_tops.insert(top.clone()) && fs::symlink_metadata(&top).is_err() {
+                created.push(top);
+            }
+        } else if entry.header().entry_type().is_dir() {
+            let top = dest.join(rel);
+            if seen_tops.insert(top.clone()) && fs::symlink_metadata(&top).is_err() {
+                created.push(top);
+            }
         }
         let fraction = Some(done.load(Ordering::Relaxed) as f64 / total as f64);
         report(&mut progress, fraction, rel.display().to_string());
@@ -201,6 +259,7 @@ pub fn extract_tar(
             prepare_dirs(dest, rel.parent().unwrap_or(Path::new("")))?;
             let _ = fs::remove_file(&dest_path);
             std::os::unix::fs::symlink(&target, &dest_path)?;
+            created.push(dest_path);
             files += 1;
             continue;
         }
@@ -209,6 +268,7 @@ pub fn extract_tar(
             let Some(dest_path) = dest_path else { continue };
             prepare_dirs(dest, rel.parent().unwrap_or(Path::new("")))?;
             let mode = entry.header().mode().unwrap_or(0o644);
+            created.push(dest_path.clone());
             // `entry` is the reader. Copy it without following a planted symlink.
             let mut reader = CancelRead {
                 inner: &mut entry,
@@ -228,7 +288,9 @@ pub fn extract_tar(
                     let src = dest.join(target.as_ref());
                     if let Some(dest_path) = place_new(&checked_join(dest, rel)?, conflict)? {
                         prepare_dirs(dest, rel.parent().unwrap_or(Path::new("")))?;
-                        let _ = fs::hard_link(&src, &dest_path);
+                        if fs::hard_link(&src, &dest_path).is_ok() {
+                            created.push(dest_path);
+                        }
                         files += 1;
                     }
                 }
