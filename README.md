@@ -110,6 +110,8 @@ cargo test
 
 That puts `elavo-archive-utility` on `~/.local/bin` and installs the desktop file, the AppStream metainfo, and the icons. Set `PREFIX` for a different location, for example `PREFIX=/usr/local`.
 
+The image build runs `cargo build --release --locked`, then `DESTDIR=/out scripts/install`. That script honors `DESTDIR` and `PREFIX` (default `/usr`) and does not build.
+
 ### Flatpak
 
 `packaging/io.elavo.ArchiveUtility.flatpak.yml` builds Archive Utility, 7-Zip 25.01, libunarr 1.1.1, and cabextract 1.11 against the GNOME 47 runtime. `unar` is not included (it is a GNUstep program). `innoextract` is not included (it needs Boost). Both still work if they are on `PATH` outside the sandbox.

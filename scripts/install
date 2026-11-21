@@ -1,0 +1,24 @@
+#!/bin/sh
+# Install a release build. Run `cargo build --release` first.
+# Honors DESTDIR and PREFIX (default /usr). The image build calls this.
+set -eu
+
+cd "$(dirname "$0")/.."
+prefix="${PREFIX:-/usr}"
+dest="${DESTDIR:-}"
+id=io.elavo.ArchiveUtility
+
+install -Dm755 target/release/elavo-archive-utility \
+    "${dest}${prefix}/bin/elavo-archive-utility"
+install -Dm644 "data/${id}.desktop" \
+    "${dest}${prefix}/share/applications/${id}.desktop"
+install -Dm644 "data/${id}.metainfo.xml" \
+    "${dest}${prefix}/share/metainfo/${id}.metainfo.xml"
+install -Dm644 "data/icons/hicolor/scalable/apps/${id}.svg" \
+    "${dest}${prefix}/share/icons/hicolor/scalable/apps/${id}.svg"
+install -Dm644 "data/icons/hicolor/symbolic/apps/${id}-symbolic.svg" \
+    "${dest}${prefix}/share/icons/hicolor/symbolic/apps/${id}-symbolic.svg"
+install -Dm644 "data/icons/hicolor/128x128/apps/${id}.png" \
+    "${dest}${prefix}/share/icons/hicolor/128x128/apps/${id}.png"
+install -Dm644 "data/icons/hicolor/256x256/apps/${id}.png" \
+    "${dest}${prefix}/share/icons/hicolor/256x256/apps/${id}.png"
