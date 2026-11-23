@@ -101,7 +101,7 @@ dependencies = [
 
 [[package]]
 name = "elavo-archive-utility"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "elavo-archive-utility-core",
  "glib",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "elavo-archive-utility-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bzip2",
  "flate2",

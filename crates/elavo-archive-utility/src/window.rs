@@ -20,6 +20,8 @@ use elavo_archive_utility_core::{
 
 const WIDTH: i32 = 420;
 const HEIGHT: i32 = 500;
+const MIN_WIDTH: i32 = 400;
+const MIN_HEIGHT: i32 = 440;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Zone {
@@ -79,6 +81,7 @@ impl Window {
             .resizable(true)
             .css_classes(["background", "au"])
             .build();
+        window.set_size_request(MIN_WIDTH, MIN_HEIGHT);
 
         // The theme's title bar, as in System Settings: window buttons from
         // the system layout, no title text, and the format pill at the end.
